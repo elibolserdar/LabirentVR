@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
@@ -10,20 +11,26 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float gravity = -9.81f;
     [SerializeField] private float groundedVelocity = -2f;
 
+    [Header("Path Tracking")]
+    [SerializeField, Min(0.001f)]
+    private float pathSampleDistance = 0.02f;
+
+    private readonly List<Vector3> pathHistory = new();
+
     private CharacterController controller;
     private float currentForwardSpeed;
     private float verticalVelocity;
+    private float pathLength;
 
-    public float NormalizedSpeed
-    {
-        get
-        {
-            if (config == null || config.MaxForwardSpeed <= 0f)
-                return 0f;
+    private Vector3 previousFramePosition;
+    private Vector3 lastSampledPosition;
 
-            return currentForwardSpeed / config.MaxForwardSpeed;
-        }
-    }
+    public float NormalizedSpeed =>
+        config == null || config.MaxForwardSpeed <= 0f
+            ? 0f
+            : currentForwardSpeed / config.MaxForwardSpeed;
+
+    public IReadOnlyList<Vector3> PathHistory => pathHistory;
 
     private void Awake()
     {
@@ -36,7 +43,10 @@ public class PlayerMovement : MonoBehaviour
                 this);
 
             enabled = false;
+            return;
         }
+
+        ResetPath();
     }
 
     private void Update()
@@ -44,6 +54,7 @@ public class PlayerMovement : MonoBehaviour
         HandleRotation();
         HandleForwardMovement();
         HandleGravity();
+        TrackPath();
     }
 
     private void HandleRotation()
@@ -90,5 +101,60 @@ public class PlayerMovement : MonoBehaviour
 
         controller.Move(
             Vector3.up * verticalVelocity * Time.deltaTime);
+    }
+
+    private void TrackPath()
+    {
+        Vector3 currentPosition = transform.position;
+
+        Vector3 frameMovement =
+            currentPosition - previousFramePosition;
+
+        frameMovement.y = 0f;
+        pathLength += frameMovement.magnitude;
+        previousFramePosition = currentPosition;
+
+        Vector3 sampleMovement =
+            currentPosition - lastSampledPosition;
+
+        sampleMovement.y = 0f;
+
+        if (sampleMovement.magnitude < pathSampleDistance)
+            return;
+
+        pathHistory.Add(currentPosition);
+        lastSampledPosition = currentPosition;
+    }
+
+    public void ResetPath()
+    {
+        pathLength = 0f;
+        pathHistory.Clear();
+
+        previousFramePosition = transform.position;
+        lastSampledPosition = transform.position;
+
+        pathHistory.Add(transform.position);
+    }
+
+    public float GetPathLength()
+    {
+        return pathLength;
+    }
+
+    public void Teleport(
+        Vector3 position,
+        Quaternion rotation)
+    {
+        controller.enabled = false;
+
+        transform.SetPositionAndRotation(position, rotation);
+
+        controller.enabled = true;
+
+        currentForwardSpeed = 0f;
+        verticalVelocity = groundedVelocity;
+
+        ResetPath();
     }
 }
