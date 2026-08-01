@@ -3,10 +3,8 @@ using UnityEngine;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Movement")]
-    [SerializeField] private float maxForwardSpeed = 1.1f;
-    [SerializeField] private float turnSpeed = 50f;
-    [SerializeField] private float accelerationTime = 0.4f;
+    [Header("Configuration")]
+    [SerializeField] private MazeConfig config;
 
     [Header("Gravity")]
     [SerializeField] private float gravity = -9.81f;
@@ -16,12 +14,29 @@ public class PlayerMovement : MonoBehaviour
     private float currentForwardSpeed;
     private float verticalVelocity;
 
-    public float NormalizedSpeed =>
-        maxForwardSpeed <= 0f ? 0f : currentForwardSpeed / maxForwardSpeed;
+    public float NormalizedSpeed
+    {
+        get
+        {
+            if (config == null || config.MaxForwardSpeed <= 0f)
+                return 0f;
+
+            return currentForwardSpeed / config.MaxForwardSpeed;
+        }
+    }
 
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
+
+        if (config == null)
+        {
+            Debug.LogError(
+                "MazeConfig is not assigned to PlayerMovement.",
+                this);
+
+            enabled = false;
+        }
     }
 
     private void Update()
@@ -40,23 +55,29 @@ public class PlayerMovement : MonoBehaviour
         else if (Input.GetKey(KeyCode.RightArrow))
             turnInput = 1f;
 
-        transform.Rotate(Vector3.up, turnInput * turnSpeed * Time.deltaTime);
+        transform.Rotate(
+            Vector3.up,
+            turnInput * config.TurnSpeed * Time.deltaTime);
     }
 
     private void HandleForwardMovement()
     {
         float targetSpeed = Input.GetKey(KeyCode.UpArrow)
-            ? maxForwardSpeed
+            ? config.MaxForwardSpeed
             : 0f;
 
-        float acceleration = maxForwardSpeed / Mathf.Max(accelerationTime, 0.01f);
+        float acceleration =
+            config.MaxForwardSpeed /
+            Mathf.Max(config.AccelerationTime, 0.01f);
 
         currentForwardSpeed = Mathf.MoveTowards(
             currentForwardSpeed,
             targetSpeed,
             acceleration * Time.deltaTime);
 
-        Vector3 movement = transform.forward * currentForwardSpeed;
+        Vector3 movement =
+            transform.forward * currentForwardSpeed;
+
         controller.Move(movement * Time.deltaTime);
     }
 

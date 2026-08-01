@@ -488,9 +488,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02678def70d959b4e8faf127e26025a2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CubeController
-  maxForwardSpeed: 1.1
-  turnSpeed: 50
-  accelerationTime: 0.4
+  config: {fileID: 11400000, guid: 155653cbb2cf5fb43abd2582caadf1f5, type: 2}
   gravity: -9.81
   groundedVelocity: -2
 --- !u!143 &303800891
