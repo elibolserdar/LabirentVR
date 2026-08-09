@@ -86,7 +86,7 @@ public sealed class TrialManager : MonoBehaviour
             RecordProbeQuadrantTime();
     }
 
-    private void StartExperiment()
+    public void StartExperiment()
     {
         if (experimentRunning)
             return;

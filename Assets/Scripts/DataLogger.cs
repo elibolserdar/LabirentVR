@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using UnityEngine;
 
 public sealed class DataLogger : MonoBehaviour
@@ -14,8 +15,15 @@ public sealed class DataLogger : MonoBehaviour
 
     public string FilePath => filePath;
 
-    private void Awake()
+    public void StartSession(
+        string newParticipantId,
+        string newGroup)
     {
+        participantId = newParticipantId.Trim();
+        group = newGroup.Trim();
+
+        initialized = false;
+
         Initialize();
     }
 
@@ -60,24 +68,25 @@ public sealed class DataLogger : MonoBehaviour
                 $"{safeParticipantId}_{timestamp}.csv");
 
         string header =
-            "participant_id," +
-            "group," +
-            "phase," +
-            "trial_no," +
-            "start_position," +
-            "platform_quadrant," +
-            "latency_s," +
-            "path_length_norm," +
-            "heading_error_deg," +
-            "found_platform," +
-            "percent_time_NE," +
-            "percent_time_NW," +
-            "percent_time_SW," +
+            "participant_id;" +
+            "group;" +
+            "phase;" +
+            "trial_no;" +
+            "start_position;" +
+            "platform_quadrant;" +
+            "latency_s;" +
+            "path_length_norm;" +
+            "heading_error_deg;" +
+            "found_platform;" +
+            "percent_time_NE;" +
+            "percent_time_NW;" +
+            "percent_time_SW;" +
             "percent_time_SE";
 
         File.WriteAllText(
             filePath,
-            header + Environment.NewLine);
+            header + Environment.NewLine,
+            new UTF8Encoding(true));
 
         initialized = true;
 
@@ -97,7 +106,7 @@ public sealed class DataLogger : MonoBehaviour
     {
         EnsureInitialized();
 
-        string row = string.Join(",",
+        string row = string.Join(";",
             Escape(participantId),
             Escape(group),
             phase.ToString(),
@@ -128,7 +137,7 @@ public sealed class DataLogger : MonoBehaviour
     {
         EnsureInitialized();
 
-        string row = string.Join(",",
+        string row = string.Join(";",
             Escape(participantId),
             Escape(group),
             TrialPhase.Probe.ToString(),
