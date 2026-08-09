@@ -2314,6 +2314,7 @@ MonoBehaviour:
   platformTrigger: {fileID: 333132145}
   platformRoot: {fileID: 535892784}
   poolCenter: {fileID: 800806142}
+  testPhase: 0
   testStartPoint: 1
   startKey: 116
 --- !u!1 &800806138

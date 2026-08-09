@@ -10,6 +10,7 @@ public sealed class TrialManager : MonoBehaviour
     [SerializeField] private Transform poolCenter;
 
     [Header("Prototype Test")]
+    [SerializeField] private TrialPhase testPhase = TrialPhase.Hidden;
     [SerializeField] private CardinalPoint testStartPoint = CardinalPoint.S;
     [SerializeField] private KeyCode startKey = KeyCode.T;
 
@@ -20,6 +21,11 @@ public sealed class TrialManager : MonoBehaviour
     private float headingError = -1f;
 
     private Vector3 trialStartPosition;
+
+    private float probeTimeNE;
+    private float probeTimeNW;
+    private float probeTimeSW;
+    private float probeTimeSE;
 
     private void OnEnable()
     {
@@ -49,11 +55,20 @@ public sealed class TrialManager : MonoBehaviour
             return;
         }
 
-        TryRecordHeadingError();
+        if (testPhase == TrialPhase.Hidden)
+            TryRecordHeadingError();
+
+        if (testPhase == TrialPhase.Probe)
+            RecordProbeQuadrantTime();
 
         float elapsedTime = Time.time - trialStartTime;
 
-        if (elapsedTime >= config.TrialTimeLimit)
+        float timeLimit =
+            testPhase == TrialPhase.Probe
+                ? config.ProbeDuration
+                : config.TrialTimeLimit;
+
+        if (elapsedTime >= timeLimit)
             FinishTrial(foundPlatform: false);
     }
 
@@ -67,13 +82,26 @@ public sealed class TrialManager : MonoBehaviour
 
         Vector3 center = poolCenter.position;
 
-        Vector3 startPosition =
-            QuadrantUtils.GetCardinalStartPosition(
-                testStartPoint,
-                center,
-                config.PoolRadius);
+        Vector3 startPosition;
 
-        // CharacterController'ın mevcut zemin yüksekliğini koruyoruz.
+        if (testPhase == TrialPhase.Probe)
+        {
+            startPosition =
+                QuadrantUtils.GetProbeStartPosition(
+                    platformRoot.position,
+                    center,
+                    config.PoolRadius);
+        }
+        else
+        {
+            startPosition =
+                QuadrantUtils.GetCardinalStartPosition(
+                    testStartPoint,
+                    center,
+                    config.PoolRadius);
+        }
+
+        // Player'ın mevcut zemin yüksekliğini koru.
         startPosition.y = player.transform.position.y;
 
         Quaternion startRotation =
@@ -81,8 +109,7 @@ public sealed class TrialManager : MonoBehaviour
                 startPosition,
                 center);
 
-        platformTrigger.SetActive(true);
-        platformTrigger.SetVisible(true);
+        ConfigurePlatform(testPhase);
 
         player.Teleport(startPosition, startRotation);
 
@@ -91,11 +118,36 @@ public sealed class TrialManager : MonoBehaviour
 
         headingError = -1f;
         headingErrorRecorded = false;
+
+        ResetProbeTimes();
+
         trialRunning = true;
 
         Debug.Log(
-            $"Test trial started from {testStartPoint}. " +
-            "Use Up/Left/Right arrows.");
+            $"{testPhase} trial started. " +
+            $"Start position: {startPosition}");
+    }
+
+    private void ConfigurePlatform(TrialPhase phase)
+    {
+        switch (phase)
+        {
+            case TrialPhase.Exploration:
+            case TrialPhase.Visible:
+                platformTrigger.SetVisible(true);
+                platformTrigger.SetActive(true);
+                break;
+
+            case TrialPhase.Hidden:
+                platformTrigger.SetVisible(false);
+                platformTrigger.SetActive(true);
+                break;
+
+            case TrialPhase.Probe:
+                platformTrigger.SetVisible(false);
+                platformTrigger.SetActive(false);
+                break;
+        }
     }
 
     private void TryRecordHeadingError()
@@ -123,9 +175,48 @@ public sealed class TrialManager : MonoBehaviour
             $"Heading error recorded: {headingError:F2} degrees.");
     }
 
+    private void RecordProbeQuadrantTime()
+    {
+        MazeQuadrant quadrant =
+            QuadrantUtils.GetQuadrant(
+                player.transform.position,
+                poolCenter.position);
+
+        switch (quadrant)
+        {
+            case MazeQuadrant.NE:
+                probeTimeNE += Time.deltaTime;
+                break;
+
+            case MazeQuadrant.NW:
+                probeTimeNW += Time.deltaTime;
+                break;
+
+            case MazeQuadrant.SW:
+                probeTimeSW += Time.deltaTime;
+                break;
+
+            case MazeQuadrant.SE:
+                probeTimeSE += Time.deltaTime;
+                break;
+        }
+    }
+
+    private void ResetProbeTimes()
+    {
+        probeTimeNE = 0f;
+        probeTimeNW = 0f;
+        probeTimeSW = 0f;
+        probeTimeSE = 0f;
+    }
+
     private void HandlePlayerReachedPlatform()
     {
         if (!trialRunning)
+            return;
+
+        // Probe'da platform bulunamaz.
+        if (testPhase == TrialPhase.Probe)
             return;
 
         FinishTrial(foundPlatform: true);
@@ -139,24 +230,68 @@ public sealed class TrialManager : MonoBehaviour
         trialRunning = false;
         platformTrigger.SetActive(false);
 
+        float timeLimit =
+            testPhase == TrialPhase.Probe
+                ? config.ProbeDuration
+                : config.TrialTimeLimit;
+
         float latency =
             Mathf.Min(
                 Time.time - trialStartTime,
-                config.TrialTimeLimit);
+                timeLimit);
 
-        float pathLength = player.GetPathLength();
+        float pathLength =
+            player.GetPathLength();
 
         float normalizedPathLength =
             pathLength / config.PoolDiameter;
 
+        if (testPhase == TrialPhase.Probe)
+        {
+            LogProbeResult(
+                latency,
+                normalizedPathLength);
+
+            return;
+        }
+
         Debug.Log(
             "Trial finished\n" +
+            $"Phase: {testPhase}\n" +
             $"Found platform: {foundPlatform}\n" +
             $"Start point: {testStartPoint}\n" +
             $"Latency: {latency:F2} s\n" +
             $"Path length: {pathLength:F2} m\n" +
             $"Normalized path: {normalizedPathLength:F3}\n" +
             $"Heading error: {headingError:F2}°");
+    }
+
+    private void LogProbeResult(
+        float duration,
+        float normalizedPathLength)
+    {
+        float total =
+            probeTimeNE +
+            probeTimeNW +
+            probeTimeSW +
+            probeTimeSE;
+
+        if (total <= 0f)
+            total = 1f;
+
+        float percentNE = probeTimeNE / total * 100f;
+        float percentNW = probeTimeNW / total * 100f;
+        float percentSW = probeTimeSW / total * 100f;
+        float percentSE = probeTimeSE / total * 100f;
+
+        Debug.Log(
+            "Probe trial finished\n" +
+            $"Duration: {duration:F2} s\n" +
+            $"Normalized path: {normalizedPathLength:F3}\n" +
+            $"Time NE: {percentNE:F1}%\n" +
+            $"Time NW: {percentNW:F1}%\n" +
+            $"Time SW: {percentSW:F1}%\n" +
+            $"Time SE: {percentSE:F1}%");
     }
 
     private bool ValidateReferences()
