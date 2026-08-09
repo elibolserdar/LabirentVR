@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class TrialManager : MonoBehaviour
@@ -9,13 +11,16 @@ public sealed class TrialManager : MonoBehaviour
     [SerializeField] private Transform platformRoot;
     [SerializeField] private Transform poolCenter;
 
-    [Header("Prototype Test")]
-    [SerializeField] private TrialPhase testPhase = TrialPhase.Hidden;
-    [SerializeField] private CardinalPoint testStartPoint = CardinalPoint.S;
+    [Header("Experiment")]
     [SerializeField] private KeyCode startKey = KeyCode.T;
 
+    private bool experimentRunning;
     private bool trialRunning;
+    private bool platformReached;
     private bool headingErrorRecorded;
+
+    private TrialPhase currentPhase;
+    private int currentTrialNumber;
 
     private float trialStartTime;
     private float headingError = -1f;
@@ -26,6 +31,20 @@ public sealed class TrialManager : MonoBehaviour
     private float probeTimeNW;
     private float probeTimeSW;
     private float probeTimeSE;
+
+    private void Start()
+    {
+        if (player != null)
+            player.enabled = false;
+
+        if (platformTrigger != null)
+        {
+            platformTrigger.SetVisible(false);
+            platformTrigger.SetActive(false);
+        }
+
+        Debug.Log("VMWT ready. Press T to start experiment.");
+    }
 
     private void OnEnable()
     {
@@ -47,44 +66,124 @@ public sealed class TrialManager : MonoBehaviour
 
     private void Update()
     {
-        if (!trialRunning)
+        if (!experimentRunning)
         {
             if (Input.GetKeyDown(startKey))
-                StartTestTrial();
+                StartExperiment();
 
             return;
         }
 
-        if (testPhase == TrialPhase.Hidden)
+        if (!trialRunning)
+            return;
+
+        if (currentPhase == TrialPhase.Hidden)
             TryRecordHeadingError();
 
-        if (testPhase == TrialPhase.Probe)
+        if (currentPhase == TrialPhase.Probe)
             RecordProbeQuadrantTime();
-
-        float elapsedTime = Time.time - trialStartTime;
-
-        float timeLimit =
-            testPhase == TrialPhase.Probe
-                ? config.ProbeDuration
-                : config.TrialTimeLimit;
-
-        if (elapsedTime >= timeLimit)
-            FinishTrial(foundPlatform: false);
     }
 
-    public void StartTestTrial()
+    private void StartExperiment()
     {
-        if (trialRunning)
+        if (experimentRunning)
             return;
 
         if (!ValidateReferences())
             return;
 
-        Vector3 center = poolCenter.position;
+        SyncPlatformPositionWithConfig();
 
+        StartCoroutine(RunExperiment());
+    }
+
+    private IEnumerator RunExperiment()
+    {
+        experimentRunning = true;
+
+        Debug.Log("===== VMWT EXPERIMENT STARTED =====");
+
+        // FAZ I
+        yield return RunPhase(
+            TrialPhase.Exploration,
+            config.ExplorationTrialCount);
+
+        yield return WaitITI();
+
+        // FAZ II
+        yield return RunPhase(
+            TrialPhase.Hidden,
+            config.HiddenTrialCount);
+
+        // ARA
+        yield return RunBreak();
+
+        // FAZ III
+        yield return RunSingleTrial(
+            TrialPhase.Probe,
+            1,
+            CardinalPoint.N);
+
+        yield return WaitITI();
+
+        // FAZ IV
+        yield return RunPhase(
+            TrialPhase.Visible,
+            config.VisibleTrialCount);
+
+        platformTrigger.SetVisible(false);
+        platformTrigger.SetActive(false);
+
+        player.enabled = false;
+        experimentRunning = false;
+
+        Debug.Log("===== VMWT EXPERIMENT COMPLETED =====");
+    }
+
+    private IEnumerator RunPhase(
+        TrialPhase phase,
+        int trialCount)
+    {
+        Debug.Log(
+            $"===== {phase.ToString().ToUpper()} PHASE STARTED =====");
+
+        List<CardinalPoint> deck = new();
+
+        for (int i = 0; i < trialCount; i++)
+        {
+            if (deck.Count == 0)
+                deck = CreateShuffledStartDeck();
+
+            CardinalPoint startPoint = deck[0];
+            deck.RemoveAt(0);
+
+            yield return RunSingleTrial(
+                phase,
+                i + 1,
+                startPoint);
+
+            if (i < trialCount - 1)
+                yield return WaitITI();
+        }
+
+        Debug.Log(
+            $"===== {phase.ToString().ToUpper()} PHASE COMPLETED =====");
+    }
+
+    private IEnumerator RunSingleTrial(
+        TrialPhase phase,
+        int trialNumber,
+        CardinalPoint startPoint)
+    {
+        currentPhase = phase;
+        currentTrialNumber = trialNumber;
+
+        ConfigurePlatform(phase);
+
+        Vector3 center = poolCenter.position;
         Vector3 startPosition;
 
-        if (testPhase == TrialPhase.Probe)
+        if (phase == TrialPhase.Probe)
         {
             startPosition =
                 QuadrantUtils.GetProbeStartPosition(
@@ -96,12 +195,11 @@ public sealed class TrialManager : MonoBehaviour
         {
             startPosition =
                 QuadrantUtils.GetCardinalStartPosition(
-                    testStartPoint,
+                    startPoint,
                     center,
                     config.PoolRadius);
         }
 
-        // Player'ın mevcut zemin yüksekliğini koru.
         startPosition.y = player.transform.position.y;
 
         Quaternion startRotation =
@@ -109,13 +207,13 @@ public sealed class TrialManager : MonoBehaviour
                 startPosition,
                 center);
 
-        ConfigurePlatform(testPhase);
-
+        player.enabled = true;
         player.Teleport(startPosition, startRotation);
 
         trialStartPosition = startPosition;
         trialStartTime = Time.time;
 
+        platformReached = false;
         headingError = -1f;
         headingErrorRecorded = false;
 
@@ -123,12 +221,145 @@ public sealed class TrialManager : MonoBehaviour
 
         trialRunning = true;
 
+        string startName =
+            phase == TrialPhase.Probe
+                ? "Probe-180deg"
+                : startPoint.ToString();
+
         Debug.Log(
-            $"{testPhase} trial started. " +
-            $"Start position: {startPosition}");
+            $"{phase} trial {trialNumber} started. " +
+            $"Start: {startName}");
+
+        float timeLimit =
+            phase == TrialPhase.Probe
+                ? config.ProbeDuration
+                : config.TrialTimeLimit;
+
+        while (Time.time - trialStartTime < timeLimit)
+        {
+            if (phase != TrialPhase.Probe &&
+                platformReached)
+            {
+                break;
+            }
+
+            yield return null;
+        }
+
+        trialRunning = false;
+
+        float elapsedTime =
+            Mathf.Min(
+                Time.time - trialStartTime,
+                timeLimit);
+
+        bool foundPlatform =
+            phase != TrialPhase.Probe &&
+            platformReached;
+
+        float pathLength =
+            player.GetPathLength();
+
+        float normalizedPathLength =
+            pathLength / config.PoolDiameter;
+
+        platformTrigger.SetActive(false);
+
+        if (phase == TrialPhase.Probe)
+        {
+            LogProbeResult(
+                trialNumber,
+                elapsedTime,
+                normalizedPathLength);
+        }
+        else
+        {
+            LogTrialResult(
+                phase,
+                trialNumber,
+                startPoint,
+                foundPlatform,
+                elapsedTime,
+                pathLength,
+                normalizedPathLength);
+        }
+
+        // Hidden trial'da süre dolduysa hedef konumu öğret.
+        if (phase == TrialPhase.Hidden &&
+            !foundPlatform)
+        {
+            yield return GuideToGoal();
+        }
+
+        platformTrigger.SetVisible(false);
+
+        player.enabled = false;
     }
 
-    private void ConfigurePlatform(TrialPhase phase)
+    private IEnumerator GuideToGoal()
+    {
+        Debug.Log(
+            $"Hidden trial {currentTrialNumber} timed out. " +
+            "Showing goal.");
+
+        platformTrigger.SetActive(false);
+        platformTrigger.SetVisible(true);
+
+        Vector3 guidedPosition =
+            platformRoot.position;
+
+        guidedPosition.y =
+            player.transform.position.y;
+
+        Quaternion guidedRotation =
+            QuadrantUtils.GetRotationFacingCenter(
+                guidedPosition,
+                poolCenter.position);
+
+        player.Teleport(
+            guidedPosition,
+            guidedRotation);
+
+        player.enabled = false;
+
+        yield return new WaitForSeconds(
+            config.GuidedGoalDuration);
+
+        platformTrigger.SetVisible(false);
+    }
+
+    private IEnumerator RunBreak()
+    {
+        player.enabled = false;
+
+        platformTrigger.SetVisible(false);
+        platformTrigger.SetActive(false);
+
+        Debug.Log(
+            $"===== BREAK STARTED: {config.BreakDuration:F0} seconds =====");
+
+        yield return new WaitForSeconds(
+            config.BreakDuration);
+
+        Debug.Log("===== BREAK COMPLETED =====");
+    }
+
+    private IEnumerator WaitITI()
+    {
+        player.enabled = false;
+
+        platformTrigger.SetVisible(false);
+        platformTrigger.SetActive(false);
+
+        Debug.Log(
+            $"ITI: {config.InterTrialInterval:F1} seconds");
+
+        yield return new WaitForSeconds(
+            config.InterTrialInterval);
+    }
+
+    private void ConfigurePlatform(
+        TrialPhase phase)
     {
         switch (phase)
         {
@@ -150,18 +381,44 @@ public sealed class TrialManager : MonoBehaviour
         }
     }
 
+    private List<CardinalPoint> CreateShuffledStartDeck()
+    {
+        List<CardinalPoint> deck = new()
+        {
+            CardinalPoint.N,
+            CardinalPoint.S,
+            CardinalPoint.E,
+            CardinalPoint.W
+        };
+
+        for (int i = 0; i < deck.Count; i++)
+        {
+            int randomIndex =
+                Random.Range(i, deck.Count);
+
+            (deck[i], deck[randomIndex]) =
+                (deck[randomIndex], deck[i]);
+        }
+
+        return deck;
+    }
+
     private void TryRecordHeadingError()
     {
         if (headingErrorRecorded)
             return;
 
         Vector3 movement =
-            player.transform.position - trialStartPosition;
+            player.transform.position -
+            trialStartPosition;
 
         movement.y = 0f;
 
-        if (movement.magnitude < config.HeadingCheckDistance)
+        if (movement.magnitude <
+            config.HeadingCheckDistance)
+        {
             return;
+        }
 
         headingError =
             QuadrantUtils.CalculateHeadingError(
@@ -172,7 +429,7 @@ public sealed class TrialManager : MonoBehaviour
         headingErrorRecorded = true;
 
         Debug.Log(
-            $"Heading error recorded: {headingError:F2} degrees.");
+            $"Heading error: {headingError:F2}°");
     }
 
     private void RecordProbeQuadrantTime()
@@ -215,58 +472,40 @@ public sealed class TrialManager : MonoBehaviour
         if (!trialRunning)
             return;
 
-        // Probe'da platform bulunamaz.
-        if (testPhase == TrialPhase.Probe)
+        if (currentPhase == TrialPhase.Probe)
             return;
 
-        FinishTrial(foundPlatform: true);
+        platformReached = true;
     }
 
-    private void FinishTrial(bool foundPlatform)
+    private void LogTrialResult(
+        TrialPhase phase,
+        int trialNumber,
+        CardinalPoint startPoint,
+        bool foundPlatform,
+        float latency,
+        float pathLength,
+        float normalizedPathLength)
     {
-        if (!trialRunning)
-            return;
-
-        trialRunning = false;
-        platformTrigger.SetActive(false);
-
-        float timeLimit =
-            testPhase == TrialPhase.Probe
-                ? config.ProbeDuration
-                : config.TrialTimeLimit;
-
-        float latency =
-            Mathf.Min(
-                Time.time - trialStartTime,
-                timeLimit);
-
-        float pathLength =
-            player.GetPathLength();
-
-        float normalizedPathLength =
-            pathLength / config.PoolDiameter;
-
-        if (testPhase == TrialPhase.Probe)
-        {
-            LogProbeResult(
-                latency,
-                normalizedPathLength);
-
-            return;
-        }
+        string headingText =
+            phase == TrialPhase.Hidden
+                ? $"{headingError:F2}°"
+                : "N/A";
 
         Debug.Log(
             "Trial finished\n" +
-            $"Phase: {testPhase}\n" +
+            $"Phase: {phase}\n" +
+            $"Trial: {trialNumber}\n" +
+            $"Start: {startPoint}\n" +
             $"Found platform: {foundPlatform}\n" +
-            $"Start point: {testStartPoint}\n" +
             $"Latency: {latency:F2} s\n" +
             $"Path length: {pathLength:F2} m\n" +
             $"Normalized path: {normalizedPathLength:F3}\n" +
-            $"Heading error: {headingError:F2}°");
+            $"Heading error: {headingText}");
     }
 
     private void LogProbeResult(
+        int trialNumber,
         float duration,
         float normalizedPathLength)
     {
@@ -279,19 +518,39 @@ public sealed class TrialManager : MonoBehaviour
         if (total <= 0f)
             total = 1f;
 
-        float percentNE = probeTimeNE / total * 100f;
-        float percentNW = probeTimeNW / total * 100f;
-        float percentSW = probeTimeSW / total * 100f;
-        float percentSE = probeTimeSE / total * 100f;
+        float percentNE =
+            probeTimeNE / total * 100f;
+
+        float percentNW =
+            probeTimeNW / total * 100f;
+
+        float percentSW =
+            probeTimeSW / total * 100f;
+
+        float percentSE =
+            probeTimeSE / total * 100f;
 
         Debug.Log(
             "Probe trial finished\n" +
+            $"Trial: {trialNumber}\n" +
             $"Duration: {duration:F2} s\n" +
             $"Normalized path: {normalizedPathLength:F3}\n" +
             $"Time NE: {percentNE:F1}%\n" +
             $"Time NW: {percentNW:F1}%\n" +
             $"Time SW: {percentSW:F1}%\n" +
             $"Time SE: {percentSE:F1}%");
+    }
+
+    private void SyncPlatformPositionWithConfig()
+    {
+        Vector3 position =
+            poolCenter.position +
+            config.PlatformPosition;
+
+        position.y =
+            platformRoot.position.y;
+
+        platformRoot.position = position;
     }
 
     private bool ValidateReferences()

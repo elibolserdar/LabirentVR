@@ -18,12 +18,12 @@ MonoBehaviour:
   platformPositionXZ: {x: 1.75, y: 1.75}
   headingErrorDistanceRatio: 0.25
   explorationTrialCount: 4
-  hiddenTrialCount: 20
-  visibleTrialCount: 10
+  hiddenTrialCount: 4
+  visibleTrialCount: 2
   trialTimeLimit: 60
-  probeDuration: 60
+  probeDuration: 40
   interTrialInterval: 3
-  breakDuration: 300
+  breakDuration: 15
   guidedGoalDuration: 2
   maxForwardSpeed: 1.1
   turnSpeed: 50
