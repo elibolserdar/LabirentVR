@@ -11,10 +11,14 @@ public sealed class TrialManager : MonoBehaviour
     [SerializeField] private Transform platformRoot;
     [SerializeField] private Transform poolCenter;
     [SerializeField] private DataLogger dataLogger;
-    [SerializeField] private TrialAudioFeedback audioFeedback;
+    [SerializeField] private TrialAudioFeedback audioFeedback; 
+    [SerializeField] private ExperimentStatusUI statusUI;
 
     [Header("Experiment")]
     [SerializeField] private KeyCode startKey = KeyCode.T;
+
+    [SerializeField, Min(0f)]
+    private float trialIntroDuration = 1.5f;
 
     private bool experimentRunning;
     private bool trialRunning;
@@ -121,6 +125,11 @@ public sealed class TrialManager : MonoBehaviour
         yield return RunBreak();
 
         // FAZ III
+        yield return ShowTrialIntro(
+            TrialPhase.Probe,
+            1,
+            1);
+
         yield return RunSingleTrial(
             TrialPhase.Probe,
             1,
@@ -139,7 +148,11 @@ public sealed class TrialManager : MonoBehaviour
         player.enabled = false;
         experimentRunning = false;
 
-        Debug.Log("===== VMWT EXPERIMENT COMPLETED =====");
+        statusUI.ShowCompleted();
+
+        Debug.Log(
+            "===== VMWT EXPERIMENT COMPLETED =====\n" +
+            $"CSV file: {dataLogger.FilePath}");
     }
 
     private IEnumerator RunPhase(
@@ -158,6 +171,11 @@ public sealed class TrialManager : MonoBehaviour
 
             CardinalPoint startPoint = deck[0];
             deck.RemoveAt(0);
+
+            yield return ShowTrialIntro(
+                phase,
+                i + 1,
+                trialCount);
 
             yield return RunSingleTrial(
                 phase,
@@ -337,13 +355,20 @@ public sealed class TrialManager : MonoBehaviour
         platformTrigger.SetVisible(false);
         platformTrigger.SetActive(false);
 
-        Debug.Log(
-            $"===== BREAK STARTED: {config.BreakDuration:F0} seconds =====");
+        float remaining =
+            config.BreakDuration;
 
-        yield return new WaitForSeconds(
-            config.BreakDuration);
+        while (remaining > 0f)
+        {
+            statusUI.ShowBreak(
+                remaining);
 
-        Debug.Log("===== BREAK COMPLETED =====");
+            remaining -= Time.deltaTime;
+
+            yield return null;
+        }
+
+        statusUI.Hide();
     }
 
     private IEnumerator WaitITI()
@@ -353,11 +378,20 @@ public sealed class TrialManager : MonoBehaviour
         platformTrigger.SetVisible(false);
         platformTrigger.SetActive(false);
 
-        Debug.Log(
-            $"ITI: {config.InterTrialInterval:F1} seconds");
+        float remaining =
+            config.InterTrialInterval;
 
-        yield return new WaitForSeconds(
-            config.InterTrialInterval);
+        while (remaining > 0f)
+        {
+            statusUI.ShowInterTrial(
+                remaining);
+
+            remaining -= Time.deltaTime;
+
+            yield return null;
+        }
+
+        statusUI.Hide();
     }
 
     private void ConfigurePlatform(
@@ -613,5 +647,26 @@ public sealed class TrialManager : MonoBehaviour
             this);
 
         return false;
+    }
+
+    private IEnumerator ShowTrialIntro(
+    TrialPhase phase,
+    int trialNumber,
+    int totalTrials)
+    {
+        player.enabled = false;
+
+        platformTrigger.SetVisible(false);
+        platformTrigger.SetActive(false);
+
+        statusUI.ShowTrialStart(
+            phase,
+            trialNumber,
+            totalTrials);
+
+        yield return new WaitForSeconds(
+            trialIntroDuration);
+
+        statusUI.Hide();
     }
 }
