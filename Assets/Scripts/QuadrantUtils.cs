@@ -51,7 +51,7 @@ public static class QuadrantUtils
         CardinalPoint cardinalPoint,
         Vector3 poolCenter,
         float poolRadius,
-        float edgeInset = 0.5f)
+        float edgeInset = 0f)
     {
         float distanceFromCenter =
             Mathf.Max(0f, poolRadius - edgeInset);

@@ -10,6 +10,8 @@ public sealed class TrialManager : MonoBehaviour
     [SerializeField] private PlatformTrigger platformTrigger;
     [SerializeField] private Transform platformRoot;
     [SerializeField] private Transform poolCenter;
+    [SerializeField] private DataLogger dataLogger;
+    [SerializeField] private TrialAudioFeedback audioFeedback;
 
     [Header("Experiment")]
     [SerializeField] private KeyCode startKey = KeyCode.T;
@@ -475,7 +477,12 @@ public sealed class TrialManager : MonoBehaviour
         if (currentPhase == TrialPhase.Probe)
             return;
 
+        if (platformReached)
+            return;
+
         platformReached = true;
+
+        audioFeedback.PlaySuccess();
     }
 
     private void LogTrialResult(
@@ -502,6 +509,26 @@ public sealed class TrialManager : MonoBehaviour
             $"Path length: {pathLength:F2} m\n" +
             $"Normalized path: {normalizedPathLength:F3}\n" +
             $"Heading error: {headingText}");
+
+        MazeQuadrant platformQuadrant =
+            QuadrantUtils.GetQuadrant(
+                platformRoot.position,
+                poolCenter.position);
+
+        float headingValue =
+            phase == TrialPhase.Hidden
+                ? headingError
+                : -1f;
+
+        dataLogger.LogTrial(
+            phase,
+            trialNumber,
+            startPoint.ToString(),
+            platformQuadrant,
+            latency,
+            normalizedPathLength,
+            headingValue,
+            foundPlatform);
     }
 
     private void LogProbeResult(
@@ -539,6 +566,21 @@ public sealed class TrialManager : MonoBehaviour
             $"Time NW: {percentNW:F1}%\n" +
             $"Time SW: {percentSW:F1}%\n" +
             $"Time SE: {percentSE:F1}%");
+
+        MazeQuadrant platformQuadrant =
+            QuadrantUtils.GetQuadrant(
+                platformRoot.position,
+                poolCenter.position);
+
+        dataLogger.LogProbe(
+            trialNumber,
+            platformQuadrant,
+            duration,
+            normalizedPathLength,
+            percentNE,
+            percentNW,
+            percentSW,
+            percentSE);
     }
 
     private void SyncPlatformPositionWithConfig()
@@ -559,7 +601,9 @@ public sealed class TrialManager : MonoBehaviour
             player != null &&
             platformTrigger != null &&
             platformRoot != null &&
-            poolCenter != null)
+            poolCenter != null &&
+            dataLogger != null &&
+            audioFeedback != null)
         {
             return true;
         }
