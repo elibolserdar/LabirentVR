@@ -10,6 +10,11 @@ public class MouseLook : MonoBehaviour
 
     private void Start()
     {
+        #if UNITY_ANDROID
+            enabled = false;
+            return;
+        #endif
+
         SetLookEnabled(false);
     }
 

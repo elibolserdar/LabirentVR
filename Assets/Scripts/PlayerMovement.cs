@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.XR;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
@@ -18,6 +19,10 @@ public class PlayerMovement : MonoBehaviour
     private readonly List<Vector3> pathHistory = new();
 
     private CharacterController controller;
+
+    private InputDevice leftController;
+    private InputDevice rightController;
+
     private float currentForwardSpeed;
     private float verticalVelocity;
     private float pathLength;
@@ -30,11 +35,13 @@ public class PlayerMovement : MonoBehaviour
             ? 0f
             : currentForwardSpeed / config.MaxForwardSpeed;
 
-    public IReadOnlyList<Vector3> PathHistory => pathHistory;
+    public IReadOnlyList<Vector3> PathHistory =>
+        pathHistory;
 
     private void Awake()
     {
-        controller = GetComponent<CharacterController>();
+        controller =
+            GetComponent<CharacterController>();
 
         if (config == null)
         {
@@ -49,8 +56,15 @@ public class PlayerMovement : MonoBehaviour
         ResetPath();
     }
 
+    private void OnEnable()
+    {
+        TryInitializeXRControllers();
+    }
+
     private void Update()
     {
+        EnsureXRControllers();
+
         HandleRotation();
         HandleForwardMovement();
         HandleGravity();
@@ -59,82 +73,222 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleRotation()
     {
-        float turnInput = 0f;
-
-        if (Input.GetKey(KeyCode.LeftArrow))
-            turnInput = -1f;
-        else if (Input.GetKey(KeyCode.RightArrow))
-            turnInput = 1f;
+        float turnInput =
+            GetTurnInput();
 
         transform.Rotate(
             Vector3.up,
-            turnInput * config.TurnSpeed * Time.deltaTime);
+            turnInput *
+            config.TurnSpeed *
+            Time.deltaTime);
     }
 
     private void HandleForwardMovement()
     {
-        float targetSpeed = Input.GetKey(KeyCode.UpArrow)
-            ? config.MaxForwardSpeed
-            : 0f;
+        float forwardInput =
+            GetForwardInput();
+
+        float targetSpeed =
+            forwardInput *
+            config.MaxForwardSpeed;
 
         float acceleration =
             config.MaxForwardSpeed /
-            Mathf.Max(config.AccelerationTime, 0.01f);
+            Mathf.Max(
+                config.AccelerationTime,
+                0.01f);
 
-        currentForwardSpeed = Mathf.MoveTowards(
-            currentForwardSpeed,
-            targetSpeed,
-            acceleration * Time.deltaTime);
+        currentForwardSpeed =
+            Mathf.MoveTowards(
+                currentForwardSpeed,
+                targetSpeed,
+                acceleration *
+                Time.deltaTime);
 
         Vector3 movement =
-            transform.forward * currentForwardSpeed;
+            transform.forward *
+            currentForwardSpeed;
 
-        controller.Move(movement * Time.deltaTime);
+        controller.Move(
+            movement *
+            Time.deltaTime);
+    }
+
+    private float GetForwardInput()
+    {
+#if UNITY_ANDROID
+
+        if (leftController.isValid &&
+            leftController.TryGetFeatureValue(
+                CommonUsages.primary2DAxis,
+                out Vector2 axis))
+        {
+            float forward =
+                axis.y;
+
+            if (forward <= config.InputDeadzone)
+                return 0f;
+
+            // Sadece ileri hareket.
+            // Negatif Y = geri gitme, izin vermiyoruz.
+            return Mathf.Clamp01(forward);
+        }
+
+        return 0f;
+
+#else
+
+        return Input.GetKey(KeyCode.UpArrow)
+            ? 1f
+            : 0f;
+
+#endif
+    }
+
+    private float GetTurnInput()
+    {
+#if UNITY_ANDROID
+
+        if (rightController.isValid &&
+            rightController.TryGetFeatureValue(
+                CommonUsages.primary2DAxis,
+                out Vector2 axis))
+        {
+            float turn =
+                axis.x;
+
+            if (Mathf.Abs(turn) <
+                config.InputDeadzone)
+            {
+                return 0f;
+            }
+
+            return Mathf.Clamp(
+                turn,
+                -1f,
+                1f);
+        }
+
+        return 0f;
+
+#else
+
+        if (Input.GetKey(KeyCode.LeftArrow))
+            return -1f;
+
+        if (Input.GetKey(KeyCode.RightArrow))
+            return 1f;
+
+        return 0f;
+
+#endif
+    }
+
+    private void TryInitializeXRControllers()
+    {
+#if UNITY_ANDROID
+
+        leftController =
+            InputDevices.GetDeviceAtXRNode(
+                XRNode.LeftHand);
+
+        rightController =
+            InputDevices.GetDeviceAtXRNode(
+                XRNode.RightHand);
+
+#endif
+    }
+
+    private void EnsureXRControllers()
+    {
+#if UNITY_ANDROID
+
+        if (!leftController.isValid)
+        {
+            leftController =
+                InputDevices.GetDeviceAtXRNode(
+                    XRNode.LeftHand);
+        }
+
+        if (!rightController.isValid)
+        {
+            rightController =
+                InputDevices.GetDeviceAtXRNode(
+                    XRNode.RightHand);
+        }
+
+#endif
     }
 
     private void HandleGravity()
     {
-        if (controller.isGrounded && verticalVelocity < 0f)
-            verticalVelocity = groundedVelocity;
+        if (controller.isGrounded &&
+            verticalVelocity < 0f)
+        {
+            verticalVelocity =
+                groundedVelocity;
+        }
 
-        verticalVelocity += gravity * Time.deltaTime;
+        verticalVelocity +=
+            gravity *
+            Time.deltaTime;
 
         controller.Move(
-            Vector3.up * verticalVelocity * Time.deltaTime);
+            Vector3.up *
+            verticalVelocity *
+            Time.deltaTime);
     }
 
     private void TrackPath()
     {
-        Vector3 currentPosition = transform.position;
+        Vector3 currentPosition =
+            transform.position;
 
         Vector3 frameMovement =
-            currentPosition - previousFramePosition;
+            currentPosition -
+            previousFramePosition;
 
         frameMovement.y = 0f;
-        pathLength += frameMovement.magnitude;
-        previousFramePosition = currentPosition;
+
+        pathLength +=
+            frameMovement.magnitude;
+
+        previousFramePosition =
+            currentPosition;
 
         Vector3 sampleMovement =
-            currentPosition - lastSampledPosition;
+            currentPosition -
+            lastSampledPosition;
 
         sampleMovement.y = 0f;
 
-        if (sampleMovement.magnitude < pathSampleDistance)
+        if (sampleMovement.magnitude <
+            pathSampleDistance)
+        {
             return;
+        }
 
-        pathHistory.Add(currentPosition);
-        lastSampledPosition = currentPosition;
+        pathHistory.Add(
+            currentPosition);
+
+        lastSampledPosition =
+            currentPosition;
     }
 
     public void ResetPath()
     {
         pathLength = 0f;
+
         pathHistory.Clear();
 
-        previousFramePosition = transform.position;
-        lastSampledPosition = transform.position;
+        previousFramePosition =
+            transform.position;
 
-        pathHistory.Add(transform.position);
+        lastSampledPosition =
+            transform.position;
+
+        pathHistory.Add(
+            transform.position);
     }
 
     public float GetPathLength()
@@ -148,12 +302,15 @@ public class PlayerMovement : MonoBehaviour
     {
         controller.enabled = false;
 
-        transform.SetPositionAndRotation(position, rotation);
+        transform.SetPositionAndRotation(
+            position,
+            rotation);
 
         controller.enabled = true;
 
         currentForwardSpeed = 0f;
-        verticalVelocity = groundedVelocity;
+        verticalVelocity =
+            groundedVelocity;
 
         ResetPath();
     }
