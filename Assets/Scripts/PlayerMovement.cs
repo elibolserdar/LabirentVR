@@ -1,6 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.XR;
+
+using XRInputDevice = UnityEngine.XR.InputDevice;
+using XRCommonUsages = UnityEngine.XR.CommonUsages;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
@@ -20,8 +24,8 @@ public class PlayerMovement : MonoBehaviour
 
     private CharacterController controller;
 
-    private InputDevice leftController;
-    private InputDevice rightController;
+    private XRInputDevice leftController;
+    private XRInputDevice rightController;
 
     private float currentForwardSpeed;
     private float verticalVelocity;
@@ -116,11 +120,19 @@ public class PlayerMovement : MonoBehaviour
 
     private float GetForwardInput()
     {
-#if UNITY_ANDROID
+#if UNITY_EDITOR
+        if (Keyboard.current == null)
+            return 0f;
+
+        return Keyboard.current.upArrowKey.isPressed
+            ? 1f
+            : 0f;
+
+#elif UNITY_ANDROID
 
         if (leftController.isValid &&
             leftController.TryGetFeatureValue(
-                CommonUsages.primary2DAxis,
+                XRCommonUsages.primary2DAxis,
                 out Vector2 axis))
         {
             float forward =
@@ -130,7 +142,7 @@ public class PlayerMovement : MonoBehaviour
                 return 0f;
 
             // Sadece ileri hareket.
-            // Negatif Y = geri gitme, izin vermiyoruz.
+            // Negatif Y = geri hareket, izin vermiyoruz.
             return Mathf.Clamp01(forward);
         }
 
@@ -138,7 +150,10 @@ public class PlayerMovement : MonoBehaviour
 
 #else
 
-        return Input.GetKey(KeyCode.UpArrow)
+        if (Keyboard.current == null)
+            return 0f;
+
+        return Keyboard.current.upArrowKey.isPressed
             ? 1f
             : 0f;
 
@@ -147,11 +162,24 @@ public class PlayerMovement : MonoBehaviour
 
     private float GetTurnInput()
     {
-#if UNITY_ANDROID
+#if UNITY_EDITOR
+
+        if (Keyboard.current == null)
+            return 0f;
+
+        if (Keyboard.current.leftArrowKey.isPressed)
+            return -1f;
+
+        if (Keyboard.current.rightArrowKey.isPressed)
+            return 1f;
+
+        return 0f;
+
+#elif UNITY_ANDROID
 
         if (rightController.isValid &&
             rightController.TryGetFeatureValue(
-                CommonUsages.primary2DAxis,
+                XRCommonUsages.primary2DAxis,
                 out Vector2 axis))
         {
             float turn =
@@ -173,10 +201,13 @@ public class PlayerMovement : MonoBehaviour
 
 #else
 
-        if (Input.GetKey(KeyCode.LeftArrow))
+        if (Keyboard.current == null)
+            return 0f;
+
+        if (Keyboard.current.leftArrowKey.isPressed)
             return -1f;
 
-        if (Input.GetKey(KeyCode.RightArrow))
+        if (Keyboard.current.rightArrowKey.isPressed)
             return 1f;
 
         return 0f;
@@ -186,7 +217,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void TryInitializeXRControllers()
     {
-#if UNITY_ANDROID
+#if UNITY_ANDROID && !UNITY_EDITOR
 
         leftController =
             InputDevices.GetDeviceAtXRNode(
@@ -201,7 +232,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void EnsureXRControllers()
     {
-#if UNITY_ANDROID
+#if UNITY_ANDROID && !UNITY_EDITOR
 
         if (!leftController.isValid)
         {

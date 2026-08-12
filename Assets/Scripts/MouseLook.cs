@@ -1,8 +1,9 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class MouseLook : MonoBehaviour
 {
-    [SerializeField] private float mouseSensitivity = 150f;
+    [SerializeField] private float mouseSensitivity = 0.08f;
     [SerializeField] private Transform playerBody;
 
     private float xRotation = 0f;
@@ -10,30 +11,34 @@ public class MouseLook : MonoBehaviour
 
     private void Start()
     {
-        #if UNITY_ANDROID
-            enabled = false;
-            return;
-        #endif
+#if UNITY_ANDROID && !UNITY_EDITOR
+        // Gerçek Quest/Android cihazýnda mouse ile bakýþ kullanýlmayacak.
+        enabled = false;
+        return;
+#endif
 
+        // Unity Editor'da build target Android olsa bile
+        // PC mouse kontrolünü test edebilmek istiyoruz.
         SetLookEnabled(false);
     }
 
     private void Update()
     {
-        if (!lookEnabled)
+        if (!lookEnabled || Mouse.current == null)
             return;
 
+        Vector2 mouseDelta = Mouse.current.delta.ReadValue();
+
         float mouseX =
-            Input.GetAxis("Mouse X") *
-            mouseSensitivity *
-            Time.deltaTime;
+            mouseDelta.x *
+            mouseSensitivity;
 
         float mouseY =
-            Input.GetAxis("Mouse Y") *
-            mouseSensitivity *
-            Time.deltaTime;
+            mouseDelta.y *
+            mouseSensitivity;
 
         xRotation -= mouseY;
+
         xRotation = Mathf.Clamp(
             xRotation,
             -80f,

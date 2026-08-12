@@ -1,3 +1,4 @@
+using UnityEngine.InputSystem;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -15,7 +16,7 @@ public sealed class TrialManager : MonoBehaviour
     [SerializeField] private ExperimentStatusUI statusUI;
 
     [Header("Experiment")]
-    [SerializeField] private KeyCode startKey = KeyCode.T;
+    [SerializeField] private Key startKey = Key.T;
 
     [SerializeField, Min(0f)]
     private float trialIntroDuration = 1.5f;
@@ -74,7 +75,7 @@ public sealed class TrialManager : MonoBehaviour
     {
         if (!experimentRunning)
         {
-            if (Input.GetKeyDown(startKey))
+            if (Keyboard.current != null && Keyboard.current[startKey].wasPressedThisFrame)
                 StartExperiment();
 
             return;

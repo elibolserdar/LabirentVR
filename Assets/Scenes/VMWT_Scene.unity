@@ -1907,7 +1907,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71343193ce21eb14dbdace196aa8d15b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MouseLook
-  mouseSensitivity: 150
+  mouseSensitivity: 0.08
   playerBody: {fileID: 303800889}
 --- !u!114 &330585549
 MonoBehaviour:
