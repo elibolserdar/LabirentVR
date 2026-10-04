@@ -30,6 +30,9 @@ public sealed class MazeConfig : ScriptableObject
     private int hiddenTrialCount = 20;
 
     [SerializeField, Min(1)]
+    private int dualBlockTrialCount = 8;
+
+    [SerializeField, Min(1)]
     private int visibleTrialCount = 10;
 
     [Header("Trial Durations - Seconds")]
@@ -81,6 +84,7 @@ public sealed class MazeConfig : ScriptableObject
 
     public int ExplorationTrialCount => explorationTrialCount;
     public int HiddenTrialCount => hiddenTrialCount;
+    public int DualBlockTrialCount => dualBlockTrialCount;
     public int VisibleTrialCount => visibleTrialCount;
 
     public float TrialTimeLimit => trialTimeLimit;
