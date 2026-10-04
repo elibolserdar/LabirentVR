@@ -19,7 +19,7 @@ MonoBehaviour:
   headingErrorDistanceRatio: 0.25
   explorationTrialCount: 1
   hiddenTrialCount: 1
-  dualBlockTrialCount: 8
+  dualBlockTrialCount: 2
   visibleTrialCount: 1
   trialTimeLimit: 60
   probeDuration: 15
