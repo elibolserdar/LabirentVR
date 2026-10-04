@@ -42,6 +42,32 @@ public sealed class ExperimentStatusUI : MonoBehaviour
             "Sürenin dolduğunu düşündüğünüzde bırakın.";
     }
 
+    public void ShowDualBlockReproductionProgress(
+        float elapsedSeconds,
+        bool useQuestController)
+    {
+        statusPanel.SetActive(true);
+        statusTitle.text = "● KAYIT AKTİF ●";
+
+        string buttonInstruction = useQuestController
+            ? "A butonunu bırakınca ölçüm tamamlanır."
+            : "Space tuşunu bırakınca ölçüm tamamlanır.";
+
+        statusDetail.text =
+            "BA-BA-BA sesini sürdürün.\n\n" +
+            $"{elapsedSeconds:F1} saniye\n\n" +
+            buttonInstruction;
+    }
+
+    public void ShowDualBlockReproductionComplete(float elapsedSeconds)
+    {
+        statusPanel.SetActive(true);
+        statusTitle.text = "SÜRE KAYDEDİLDİ";
+        statusDetail.text =
+            $"Tahmininiz: {elapsedSeconds:F1} saniye\n" +
+            "Sonraki aşamaya geçiliyor...";
+    }
+
     public void ShowInterTrial(float remainingSeconds)
     {
         statusPanel.SetActive(true);
