@@ -27,6 +27,21 @@ public sealed class ExperimentStatusUI : MonoBehaviour
                 : $"Deneme {trialNumber} / {totalTrials}\nHazır olun...";
     }
 
+    public void ShowDualBlockReproductionPrompt(bool useQuestController)
+    {
+        statusPanel.SetActive(true);
+        statusTitle.text = "Süre Tahmini";
+
+        string buttonInstruction = useQuestController
+            ? "A butonunu basılı tutun."
+            : "Space tuşunu basılı tutun.";
+
+        statusDetail.text =
+            "BA-BA-BA diye ses çıkarmaya başlayın.\n" +
+            buttonInstruction + "\n" +
+            "Sürenin dolduğunu düşündüğünüzde bırakın.";
+    }
+
     public void ShowInterTrial(float remainingSeconds)
     {
         statusPanel.SetActive(true);
@@ -84,6 +99,9 @@ public sealed class ExperimentStatusUI : MonoBehaviour
 
             TrialPhase.Probe =>
                 "Prob Denemesi",
+
+            TrialPhase.DualBlock =>
+                "Dual Blok",
 
             TrialPhase.Visible =>
                 "Görünür Platform",
