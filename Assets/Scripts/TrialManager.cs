@@ -2,6 +2,10 @@ using UnityEngine.InputSystem;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using XRCommonUsages = UnityEngine.XR.CommonUsages;
+using XRInputDevices = UnityEngine.XR.InputDevices;
+using XRInputDevice = UnityEngine.XR.InputDevice;
+using XRNode = UnityEngine.XR.XRNode;
 
 public sealed class TrialManager : MonoBehaviour
 {
@@ -31,6 +35,9 @@ public sealed class TrialManager : MonoBehaviour
 
     private float trialStartTime;
     private float headingError = -1f;
+
+    private XRInputDevice rightController;
+    private float lastReproducedTime = -1f;
 
     private Vector3 trialStartPosition;
 
@@ -138,7 +145,14 @@ public sealed class TrialManager : MonoBehaviour
 
         yield return WaitITI();
 
-        // FAZ IV
+        // FAZ IV - Dual Blok
+        yield return RunPhase(
+            TrialPhase.DualBlock,
+            config.DualBlockTrialCount);
+
+        yield return WaitITI();
+
+        // FAZ V - Görünür Platform
         yield return RunPhase(
             TrialPhase.Visible,
             config.VisibleTrialCount);
@@ -293,6 +307,31 @@ public sealed class TrialManager : MonoBehaviour
                 elapsedTime,
                 normalizedPathLength);
         }
+        else if (phase == TrialPhase.DualBlock)
+        {
+            // Katılımcı platformu bulduysa hareketi durdurup süre tahmini al.
+            player.enabled = false;
+            platformTrigger.SetVisible(false);
+
+            float reproducedTime = -1f;
+
+            if (foundPlatform)
+            {
+                lastReproducedTime = -1f;
+                yield return CollectReproducedTime();
+                reproducedTime = lastReproducedTime;
+            }
+
+            LogTrialResult(
+                phase,
+                trialNumber,
+                startPoint,
+                foundPlatform,
+                elapsedTime,
+                pathLength,
+                normalizedPathLength,
+                reproducedTime);
+        }
         else
         {
             LogTrialResult(
@@ -305,8 +344,9 @@ public sealed class TrialManager : MonoBehaviour
                 normalizedPathLength);
         }
 
-        // Hidden trial'da süre dolduysa hedef konumu öğret.
-        if (phase == TrialPhase.Hidden &&
+        // Hidden ve DualBlock başarısız denemelerinde hedef konumunu göster.
+        if ((phase == TrialPhase.Hidden ||
+             phase == TrialPhase.DualBlock) &&
             !foundPlatform)
         {
             yield return GuideToGoal();
@@ -317,10 +357,65 @@ public sealed class TrialManager : MonoBehaviour
         player.enabled = false;
     }
 
+    private IEnumerator CollectReproducedTime()
+    {
+        bool useQuestController =
+            Application.platform == RuntimePlatform.Android;
+
+        statusUI.ShowDualBlockReproductionPrompt(useQuestController);
+
+        Debug.Log("Dual Block time reproduction started.");
+
+        // Önceden basılı kalan bir tuşun süreyi başlatmasını engelle.
+        while (IsReproductionButtonPressed())
+            yield return null;
+
+        // Katılımcı tuşa basana kadar bekle.
+        while (!IsReproductionButtonPressed())
+            yield return null;
+
+        float pressStartTime = Time.realtimeSinceStartup;
+
+        // Tuş bırakıldığında tahmini süre tamamlanır.
+        while (IsReproductionButtonPressed())
+            yield return null;
+
+        lastReproducedTime =
+            Mathf.Max(0f, Time.realtimeSinceStartup - pressStartTime);
+
+        statusUI.Hide();
+
+        Debug.Log(
+            $"Dual Block reproduced time: {lastReproducedTime:F2} s");
+    }
+
+    private bool IsReproductionButtonPressed()
+    {
+#if UNITY_EDITOR
+        return Keyboard.current != null &&
+               Keyboard.current.spaceKey.isPressed;
+#elif UNITY_ANDROID
+        if (!rightController.isValid)
+        {
+            rightController =
+                XRInputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+        }
+
+        return rightController.isValid &&
+               rightController.TryGetFeatureValue(
+                   XRCommonUsages.primaryButton,
+                   out bool pressed) &&
+               pressed;
+#else
+        return Keyboard.current != null &&
+               Keyboard.current.spaceKey.isPressed;
+#endif
+    }
+
     private IEnumerator GuideToGoal()
     {
         Debug.Log(
-            $"Hidden trial {currentTrialNumber} timed out. " +
+            $"{currentPhase} trial {currentTrialNumber} timed out. " +
             "Showing goal.");
 
         platformTrigger.SetActive(false);
@@ -407,6 +502,7 @@ public sealed class TrialManager : MonoBehaviour
                 break;
 
             case TrialPhase.Hidden:
+            case TrialPhase.DualBlock:
                 platformTrigger.SetVisible(false);
                 platformTrigger.SetActive(true);
                 break;
@@ -527,7 +623,8 @@ public sealed class TrialManager : MonoBehaviour
         bool foundPlatform,
         float latency,
         float pathLength,
-        float normalizedPathLength)
+        float normalizedPathLength,
+        float reproducedTime = -1f)
     {
         string headingText =
             phase == TrialPhase.Hidden
@@ -563,7 +660,8 @@ public sealed class TrialManager : MonoBehaviour
             latency,
             normalizedPathLength,
             headingValue,
-            foundPlatform);
+            foundPlatform,
+            reproducedTime);
     }
 
     private void LogProbeResult(
@@ -638,7 +736,8 @@ public sealed class TrialManager : MonoBehaviour
             platformRoot != null &&
             poolCenter != null &&
             dataLogger != null &&
-            audioFeedback != null)
+            audioFeedback != null &&
+            statusUI != null)
         {
             return true;
         }
