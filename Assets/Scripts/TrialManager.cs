@@ -375,14 +375,35 @@ public sealed class TrialManager : MonoBehaviour
             yield return null;
 
         float pressStartTime = Time.realtimeSinceStartup;
+        float lastUiUpdate = pressStartTime;
 
-        // Tuş bırakıldığında tahmini süre tamamlanır.
+        statusUI.ShowDualBlockReproductionProgress(
+            0f,
+            useQuestController);
+
+        // Tuş basılı kaldığı sürece süreyi ekranda canlı göster.
         while (IsReproductionButtonPressed())
+        {
+            float now = Time.realtimeSinceStartup;
+
+            // UI'ı saniyede yaklaşık 10 kez yenilemek yeterlidir.
+            if (now - lastUiUpdate >= 0.1f)
+            {
+                statusUI.ShowDualBlockReproductionProgress(
+                    now - pressStartTime,
+                    useQuestController);
+
+                lastUiUpdate = now;
+            }
+
             yield return null;
+        }
 
         lastReproducedTime =
             Mathf.Max(0f, Time.realtimeSinceStartup - pressStartTime);
 
+        statusUI.ShowDualBlockReproductionComplete(lastReproducedTime);
+        yield return new WaitForSecondsRealtime(0.5f);
         statusUI.Hide();
 
         Debug.Log(
