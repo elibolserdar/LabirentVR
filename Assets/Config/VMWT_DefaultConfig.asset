@@ -24,7 +24,7 @@ MonoBehaviour:
   trialTimeLimit: 60
   probeDuration: 15
   interTrialInterval: 3
-  breakDuration: 20
+  breakDuration: 3
   guidedGoalDuration: 2
   maxForwardSpeed: 1.1
   turnSpeed: 50
