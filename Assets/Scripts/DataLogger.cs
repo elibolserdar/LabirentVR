@@ -81,7 +81,8 @@ public sealed class DataLogger : MonoBehaviour
             "percent_time_NE;" +
             "percent_time_NW;" +
             "percent_time_SW;" +
-            "percent_time_SE";
+            "percent_time_SE;" +
+            "reproduced_time_s";
 
         File.WriteAllText(
             filePath,
@@ -102,7 +103,8 @@ public sealed class DataLogger : MonoBehaviour
         float latency,
         float normalizedPathLength,
         float headingError,
-        bool foundPlatform)
+        bool foundPlatform,
+        float reproducedTime = -1f)
     {
         EnsureInitialized();
 
@@ -120,7 +122,8 @@ public sealed class DataLogger : MonoBehaviour
             "",
             "",
             "",
-            "");
+            "",
+            reproducedTime >= 0f ? Format(reproducedTime) : "");
 
         Append(row);
     }
@@ -151,7 +154,8 @@ public sealed class DataLogger : MonoBehaviour
             Format(percentNE),
             Format(percentNW),
             Format(percentSW),
-            Format(percentSE));
+            Format(percentSE),
+            "");
 
         Append(row);
     }
