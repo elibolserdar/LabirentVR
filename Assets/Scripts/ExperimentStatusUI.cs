@@ -37,8 +37,8 @@ public sealed class ExperimentStatusUI : MonoBehaviour
             : "Space tuşuna basılı tutun.";
 
         statusDetail.text =
-            "BA-BA-BA sesini çıkarın.\\n" +
-            buttonInstruction + "\\n" +
+            "BA-BA-BA sesini çıkarın.\n" +
+            buttonInstruction + "\n" +
             "Bırakınca kayıt tamamlanır.";
     }
 
@@ -48,7 +48,7 @@ public sealed class ExperimentStatusUI : MonoBehaviour
         statusTitle.text = "● KAYIT AKTİF ●";
 
         statusDetail.text =
-            "Sesinizi sürdürün.\\n" +
+            "Sesinizi sürdürün.\n" +
             (useQuestController
                 ? "A butonunu bırakınca tamamlanır."
                 : "Space tuşunu bırakınca tamamlanır.");
