@@ -72,6 +72,16 @@ public sealed class ExperimentStatusUI : MonoBehaviour
             $"{Mathf.CeilToInt(remainingSeconds)} sn";
     }
 
+    public void ShowContinuePrompt(bool useQuestController)
+    {
+        statusPanel.SetActive(true);
+        statusTitle.text = "Devam Etmeye Hazır";
+
+        statusDetail.text = useQuestController
+            ? "Sonraki denemeye / adıma geçmek için\nA butonuna basın."
+            : "Sonraki denemeye / adıma geçmek için\nEnter tuşuna basın.";
+    }
+
     public void ShowBreak(float remainingSeconds)
     {
         statusPanel.SetActive(true);
