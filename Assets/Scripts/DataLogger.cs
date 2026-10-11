@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -6,24 +7,31 @@ using UnityEngine;
 
 public sealed class DataLogger : MonoBehaviour
 {
-    [Header("Participant - Temporary")]
+    [Header("Participant")]
     [SerializeField] private string participantId = "TEST001";
     [SerializeField] private string group = "HC";
+    [SerializeField] private string sessionLabel = "Baseline";
 
     private string filePath;
+    private string pathPointsFilePath;
     private bool initialized;
 
     public string FilePath => filePath;
+    public string PathPointsFilePath => pathPointsFilePath;
+    public string SessionLabel => sessionLabel;
 
     public void StartSession(
         string newParticipantId,
-        string newGroup)
+        string newGroup,
+        string newSessionLabel = "Baseline")
     {
         participantId = newParticipantId.Trim();
         group = newGroup.Trim();
+        sessionLabel = string.IsNullOrWhiteSpace(newSessionLabel)
+            ? "Baseline"
+            : newSessionLabel.Trim();
 
         initialized = false;
-
         Initialize();
     }
 
@@ -32,8 +40,7 @@ public sealed class DataLogger : MonoBehaviour
         if (initialized)
             return;
 
-        #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
         string documentsPath =
             Environment.GetFolderPath(
                 Environment.SpecialFolder.MyDocuments);
@@ -42,39 +49,49 @@ public sealed class DataLogger : MonoBehaviour
             Path.Combine(
                 documentsPath,
                 "VMWT_Data");
-
-        #else
-
-                string directory =
-                    Path.Combine(
-                        Application.persistentDataPath,
-                        "VMWT_Data");
-
-        #endif
+#else
+        string directory =
+            Path.Combine(
+                Application.persistentDataPath,
+                "VMWT_Data");
+#endif
 
         Directory.CreateDirectory(directory);
 
+        // Millisaniye ekle; aynı saniyedeki oturumların dosya adları
+        // daha az çakışsın.
         string timestamp =
-            DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
 
         string safeParticipantId =
-            string.IsNullOrWhiteSpace(participantId)
-                ? "UNKNOWN"
-                : participantId.Trim();
+            MakeSafeFileNamePart(participantId, "UNKNOWN");
+
+        string safeSessionLabel =
+            MakeSafeFileNamePart(sessionLabel, "Session");
+
+        string fileStem =
+            safeParticipantId + "_" + safeSessionLabel + "_" + timestamp;
 
         filePath =
             Path.Combine(
                 directory,
-                $"{safeParticipantId}_{timestamp}.csv");
+                fileStem + ".csv");
 
-        string header =
+        pathPointsFilePath =
+            Path.Combine(
+                directory,
+                fileStem + "_path_points.csv");
+
+        string trialsHeader =
             "participant_id;" +
             "group;" +
+            "session;" +
             "phase;" +
             "trial_no;" +
             "start_position;" +
             "platform_quadrant;" +
             "latency_s;" +
+            "path_length_m;" +
             "path_length_norm;" +
             "heading_error_deg;" +
             "found_platform;" +
@@ -84,15 +101,39 @@ public sealed class DataLogger : MonoBehaviour
             "percent_time_SE;" +
             "reproduced_time_s";
 
+        string pathPointsHeader =
+            "participant_id;" +
+            "group;" +
+            "session;" +
+            "phase;" +
+            "trial_no;" +
+            "sample_no;" +
+            "time_s;" +
+            "world_x_m;" +
+            "world_y_m;" +
+            "world_z_m;" +
+            "pool_relative_x_m;" +
+            "pool_relative_z_m";
+
+        var utf8WithBom = new UTF8Encoding(true);
+
         File.WriteAllText(
             filePath,
-            header + Environment.NewLine,
-            new UTF8Encoding(true));
+            trialsHeader + Environment.NewLine,
+            utf8WithBom);
+
+        File.WriteAllText(
+            pathPointsFilePath,
+            pathPointsHeader + Environment.NewLine,
+            utf8WithBom);
 
         initialized = true;
 
         Debug.Log(
-            $"DataLogger initialized:\n{filePath}");
+            "DataLogger initialized.\n" +
+            "Trial results: " + filePath + "\n" +
+            "Path points: " + pathPointsFilePath + "\n" +
+            "Session: " + sessionLabel);
     }
 
     public void LogTrial(
@@ -101,6 +142,7 @@ public sealed class DataLogger : MonoBehaviour
         string startPosition,
         MazeQuadrant platformQuadrant,
         float latency,
+        float pathLength,
         float normalizedPathLength,
         float headingError,
         bool foundPlatform,
@@ -111,11 +153,13 @@ public sealed class DataLogger : MonoBehaviour
         string row = string.Join(";",
             Escape(participantId),
             Escape(group),
+            Escape(sessionLabel),
             phase.ToString(),
-            trialNumber.ToString(),
-            startPosition,
+            trialNumber.ToString(CultureInfo.InvariantCulture),
+            Escape(startPosition),
             platformQuadrant.ToString(),
             Format(latency),
+            Format(pathLength),
             Format(normalizedPathLength),
             Format(headingError),
             foundPlatform.ToString(),
@@ -125,13 +169,14 @@ public sealed class DataLogger : MonoBehaviour
             "",
             reproducedTime >= 0f ? Format(reproducedTime) : "");
 
-        Append(row);
+        Append(filePath, row);
     }
 
     public void LogProbe(
         int trialNumber,
         MazeQuadrant platformQuadrant,
         float duration,
+        float pathLength,
         float normalizedPathLength,
         float percentNE,
         float percentNW,
@@ -143,11 +188,13 @@ public sealed class DataLogger : MonoBehaviour
         string row = string.Join(";",
             Escape(participantId),
             Escape(group),
+            Escape(sessionLabel),
             TrialPhase.Probe.ToString(),
-            trialNumber.ToString(),
+            trialNumber.ToString(CultureInfo.InvariantCulture),
             "Probe-180deg",
             platformQuadrant.ToString(),
             Format(duration),
+            Format(pathLength),
             Format(normalizedPathLength),
             "-1",
             "False",
@@ -157,13 +204,67 @@ public sealed class DataLogger : MonoBehaviour
             Format(percentSE),
             "");
 
-        Append(row);
+        Append(filePath, row);
     }
 
-    private void Append(string row)
+    public void LogPathPoints(
+        TrialPhase phase,
+        int trialNumber,
+        Vector3 poolCenter,
+        IReadOnlyList<Vector3> pathPoints,
+        IReadOnlyList<float> pathTimes)
+    {
+        EnsureInitialized();
+
+        if (pathPoints == null || pathPoints.Count == 0)
+        {
+            Debug.LogWarning(
+                "No path points recorded for " + phase +
+                ", trial " + trialNumber + ".");
+            return;
+        }
+
+        var builder = new StringBuilder();
+
+        for (int i = 0; i < pathPoints.Count; i++)
+        {
+            Vector3 worldPosition = pathPoints[i];
+            Vector3 relativePosition = worldPosition - poolCenter;
+
+            float elapsedSeconds =
+                pathTimes != null && i < pathTimes.Count
+                    ? pathTimes[i]
+                    : 0f;
+
+            string row = string.Join(";",
+                Escape(participantId),
+                Escape(group),
+                Escape(sessionLabel),
+                phase.ToString(),
+                trialNumber.ToString(CultureInfo.InvariantCulture),
+                i.ToString(CultureInfo.InvariantCulture),
+                Format(elapsedSeconds),
+                Format(worldPosition.x),
+                Format(worldPosition.y),
+                Format(worldPosition.z),
+                Format(relativePosition.x),
+                Format(relativePosition.z));
+
+            builder.AppendLine(row);
+        }
+
+        // Tüm rota örneklerini tek seferde yaz; her satır için ayrı disk
+        // erişimi yaparak deneme sonundaki beklemeyi uzatma.
+        File.AppendAllText(
+            pathPointsFilePath,
+            builder.ToString(),
+            new UTF8Encoding(false));
+    }
+
+    private static void Append(string targetPath, string row)
     {
         File.AppendAllText(
-            filePath,
+            targetPath,
             row + Environment.NewLine);
     }
 
@@ -171,6 +272,34 @@ public sealed class DataLogger : MonoBehaviour
     {
         if (!initialized)
             Initialize();
+    }
+
+    private static string MakeSafeFileNamePart(
+        string value,
+        string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return fallback;
+
+        char[] invalidCharacters =
+            Path.GetInvalidFileNameChars();
+
+        var builder = new StringBuilder();
+
+        foreach (char character in value.Trim())
+        {
+            if (Array.IndexOf(invalidCharacters, character) >= 0 ||
+                char.IsWhiteSpace(character))
+            {
+                continue;
+            }
+
+            builder.Append(character);
+        }
+
+        return builder.Length > 0
+            ? builder.ToString()
+            : fallback;
     }
 
     private static string Format(float value)
