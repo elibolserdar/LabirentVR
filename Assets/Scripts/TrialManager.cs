@@ -469,6 +469,7 @@ public sealed class TrialManager : MonoBehaviour
             yield return null;
         }
 
+        yield return WaitForAdvance();
         statusUI.Hide();
     }
 
@@ -492,7 +493,44 @@ public sealed class TrialManager : MonoBehaviour
             yield return null;
         }
 
+        yield return WaitForAdvance();
         statusUI.Hide();
+    }
+
+    private IEnumerator WaitForAdvance()
+    {
+        bool useQuestController =
+            Application.platform == RuntimePlatform.Android;
+
+        // Önceki aşamadan basılı kalmış Enter/A tuşunu yok say.
+        while (IsAdvanceButtonPressed())
+            yield return null;
+
+        statusUI.ShowContinuePrompt(useQuestController);
+
+        // Enter (PC) veya sağ kontrolcü A (Quest) beklenir.
+        while (!IsAdvanceButtonPressed())
+            yield return null;
+    }
+
+    private bool IsAdvanceButtonPressed()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (!rightController.isValid)
+        {
+            rightController =
+                XRInputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+        }
+
+        return rightController.isValid &&
+               rightController.TryGetFeatureValue(
+                   XRCommonUsages.primaryButton,
+                   out bool pressed) &&
+               pressed;
+#else
+        return Keyboard.current != null &&
+               Keyboard.current.enterKey.isPressed;
+#endif
     }
 
     private void ConfigurePlatform(
