@@ -13,6 +13,7 @@ public sealed class DataLogger : MonoBehaviour
     [SerializeField] private string sessionLabel = "Baseline";
 
     private string sessionDirectory;
+    private string sessionId;
     private string filePath;
     private string pathPointsFilePath;
     private string configFilePath;
@@ -22,6 +23,7 @@ public sealed class DataLogger : MonoBehaviour
     public string PathPointsFilePath => pathPointsFilePath;
     public string ConfigFilePath => configFilePath;
     public string SessionDirectory => sessionDirectory;
+    public string SessionId => sessionId;
     public string SessionLabel => sessionLabel;
 
     public void StartSession(
@@ -67,6 +69,7 @@ public sealed class DataLogger : MonoBehaviour
             MakeSafeFileNamePart(sessionLabel, "Session");
 
         DateTime now = DateTime.Now;
+        sessionId = now.ToString("yyyyMMdd_HHmmss_fff");
         string dateFolder = now.ToString("yyyy-MM-dd");
         string timeFolder = now.ToString("HHmmss_fff");
 
@@ -88,6 +91,7 @@ public sealed class DataLogger : MonoBehaviour
             "participant_id;" +
             "group;" +
             "session;" +
+            "session_id;" +
             "phase;" +
             "trial_no;" +
             "start_position;" +
@@ -109,6 +113,7 @@ public sealed class DataLogger : MonoBehaviour
             "participant_id;" +
             "group;" +
             "session;" +
+            "session_id;" +
             "phase;" +
             "trial_no;" +
             "sample_no;" +
@@ -161,6 +166,7 @@ public sealed class DataLogger : MonoBehaviour
             ConfigRow("participant_id", participantId),
             ConfigRow("group", group),
             ConfigRow("session", sessionLabel),
+            ConfigRow("session_id", sessionId),
             ConfigRow("recorded_at_local", DateTime.Now.ToString("O", CultureInfo.InvariantCulture)),
             ConfigRow("unity_version", Application.unityVersion),
             ConfigRow("platform", Application.platform.ToString()),
@@ -216,6 +222,7 @@ public sealed class DataLogger : MonoBehaviour
             Escape(participantId),
             Escape(group),
             Escape(sessionLabel),
+            Escape(sessionId),
             phase.ToString(),
             trialNumber.ToString(CultureInfo.InvariantCulture),
             Escape(startPosition),
@@ -254,6 +261,7 @@ public sealed class DataLogger : MonoBehaviour
             Escape(participantId),
             Escape(group),
             Escape(sessionLabel),
+            Escape(sessionId),
             TrialPhase.Probe.ToString(),
             trialNumber.ToString(CultureInfo.InvariantCulture),
             "Probe-180deg",
@@ -307,6 +315,7 @@ public sealed class DataLogger : MonoBehaviour
                 Escape(participantId),
                 Escape(group),
                 Escape(sessionLabel),
+                Escape(sessionId),
                 phase.ToString(),
                 trialNumber.ToString(CultureInfo.InvariantCulture),
                 i.ToString(CultureInfo.InvariantCulture),
