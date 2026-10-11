@@ -9,7 +9,27 @@ public sealed class ExperimentStatusUI : MonoBehaviour
 
     private void Awake()
     {
+        ConfigureTextLayout();
         Hide();
+    }
+
+    private void ConfigureTextLayout()
+    {
+        // Uzun faz yönergelerinin başlıkla çakışmasını önle.
+        RectTransform titleRect = statusTitle.rectTransform;
+        titleRect.anchoredPosition = new Vector2(0f, 180f);
+        titleRect.sizeDelta = new Vector2(700f, 80f);
+
+        // Açıklama alanını büyüt ve metni kutuya sığdır.
+        RectTransform detailRect = statusDetail.rectTransform;
+        detailRect.anchoredPosition = new Vector2(0f, -50f);
+        detailRect.sizeDelta = new Vector2(700f, 320f);
+
+        statusDetail.enableAutoSizing = true;
+        statusDetail.fontSize = 28f;
+        statusDetail.fontSizeMin = 20f;
+        statusDetail.fontSizeMax = 28f;
+        statusDetail.verticalAlignment = VerticalAlignment.Middle;
     }
 
     public void ShowTrialStart(
