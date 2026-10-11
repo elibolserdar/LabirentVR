@@ -99,6 +99,14 @@ public sealed class TrialManager : MonoBehaviour
         if (!trialRunning)
             return;
 
+        // Fallback detection complements OnTriggerEnter. If Quest skips
+        // the physics callback, detecting actual collider overlap still
+        // ends the trial and triggers the success sound.
+        if (currentPhase != TrialPhase.Probe && !platformReached)
+        {
+            platformTrigger.CheckPlayerProximity(player.transform);
+        }
+
         if (currentPhase == TrialPhase.Hidden)
             TryRecordHeadingError();
 
