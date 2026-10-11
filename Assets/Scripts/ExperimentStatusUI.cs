@@ -29,7 +29,7 @@ public sealed class ExperimentStatusUI : MonoBehaviour
         statusDetail.fontSize = 28f;
         statusDetail.fontSizeMin = 20f;
         statusDetail.fontSizeMax = 28f;
-        statusDetail.verticalAlignment = VerticalAlignment.Middle;
+        statusDetail.verticalAlignment = VerticalAlignmentOptions.Middle;
     }
 
     public void ShowTrialStart(
