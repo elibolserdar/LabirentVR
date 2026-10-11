@@ -324,6 +324,16 @@ public sealed class TrialManager : MonoBehaviour
         float normalizedPathLength =
             pathLength / config.PoolDiameter;
 
+        // Rehberlik/teleport başlamadan önce tamamlanan denemenin
+        // rota noktalarını ve deneme içi zamanlarını diske yaz.
+        player.RecordFinalPathSample();
+        dataLogger.LogPathPoints(
+            phase,
+            trialNumber,
+            poolCenter.position,
+            player.PathHistory,
+            player.PathHistoryTimes);
+
         platformTrigger.SetActive(false);
 
         if (phase == TrialPhase.Probe)
@@ -331,6 +341,7 @@ public sealed class TrialManager : MonoBehaviour
             LogProbeResult(
                 trialNumber,
                 elapsedTime,
+                pathLength,
                 normalizedPathLength);
         }
         else if (phase == TrialPhase.DualBlock)
@@ -770,6 +781,7 @@ public sealed class TrialManager : MonoBehaviour
             startPoint.ToString(),
             platformQuadrant,
             latency,
+            pathLength,
             normalizedPathLength,
             headingValue,
             foundPlatform,
@@ -779,6 +791,7 @@ public sealed class TrialManager : MonoBehaviour
     private void LogProbeResult(
         int trialNumber,
         float duration,
+        float pathLength,
         float normalizedPathLength)
     {
         float total =
@@ -821,6 +834,7 @@ public sealed class TrialManager : MonoBehaviour
             trialNumber,
             platformQuadrant,
             duration,
+            pathLength,
             normalizedPathLength,
             percentNE,
             percentNW,
