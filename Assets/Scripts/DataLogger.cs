@@ -12,12 +12,16 @@ public sealed class DataLogger : MonoBehaviour
     [SerializeField] private string group = "HC";
     [SerializeField] private string sessionLabel = "Baseline";
 
+    private string sessionDirectory;
     private string filePath;
     private string pathPointsFilePath;
+    private string configFilePath;
     private bool initialized;
 
     public string FilePath => filePath;
     public string PathPointsFilePath => pathPointsFilePath;
+    public string ConfigFilePath => configFilePath;
+    public string SessionDirectory => sessionDirectory;
     public string SessionLabel => sessionLabel;
 
     public void StartSession(
@@ -45,23 +49,16 @@ public sealed class DataLogger : MonoBehaviour
             Environment.GetFolderPath(
                 Environment.SpecialFolder.MyDocuments);
 
-        string directory =
+        string rootDirectory =
             Path.Combine(
                 documentsPath,
                 "VMWT_Data");
 #else
-        string directory =
+        string rootDirectory =
             Path.Combine(
                 Application.persistentDataPath,
                 "VMWT_Data");
 #endif
-
-        Directory.CreateDirectory(directory);
-
-        // Millisaniye ekle; aynı saniyedeki oturumların dosya adları
-        // daha az çakışsın.
-        string timestamp =
-            DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
 
         string safeParticipantId =
             MakeSafeFileNamePart(participantId, "UNKNOWN");
@@ -69,18 +66,23 @@ public sealed class DataLogger : MonoBehaviour
         string safeSessionLabel =
             MakeSafeFileNamePart(sessionLabel, "Session");
 
-        string fileStem =
-            safeParticipantId + "_" + safeSessionLabel + "_" + timestamp;
+        DateTime now = DateTime.Now;
+        string dateFolder = now.ToString("yyyy-MM-dd");
+        string timeFolder = now.ToString("HHmmss_fff");
 
-        filePath =
-            Path.Combine(
-                directory,
-                fileStem + ".csv");
+        // Her oturum ayrı klasöre yazılır; yeni kayıtlar eski CSV'leri ezmez.
+        sessionDirectory = Path.Combine(
+            rootDirectory,
+            safeParticipantId,
+            safeSessionLabel,
+            dateFolder,
+            timeFolder);
 
-        pathPointsFilePath =
-            Path.Combine(
-                directory,
-                fileStem + "_path_points.csv");
+        Directory.CreateDirectory(sessionDirectory);
+
+        filePath = Path.Combine(sessionDirectory, "trials.csv");
+        pathPointsFilePath = Path.Combine(sessionDirectory, "path_points.csv");
+        configFilePath = Path.Combine(sessionDirectory, "experiment_config.csv");
 
         string trialsHeader =
             "participant_id;" +
@@ -90,6 +92,8 @@ public sealed class DataLogger : MonoBehaviour
             "trial_no;" +
             "start_position;" +
             "platform_quadrant;" +
+            "platform_relative_x_m;" +
+            "platform_relative_z_m;" +
             "latency_s;" +
             "path_length_m;" +
             "path_length_norm;" +
@@ -131,9 +135,66 @@ public sealed class DataLogger : MonoBehaviour
 
         Debug.Log(
             "DataLogger initialized.\n" +
+            "Session folder: " + sessionDirectory + "\n" +
             "Trial results: " + filePath + "\n" +
             "Path points: " + pathPointsFilePath + "\n" +
             "Session: " + sessionLabel);
+    }
+
+    public void LogExperimentConfig(
+        MazeConfig config,
+        Vector3 poolCenterPosition,
+        Vector3 platformRelativePosition)
+    {
+        EnsureInitialized();
+
+        if (config == null)
+        {
+            Debug.LogWarning("Cannot save experiment settings: MazeConfig is null.");
+            return;
+        }
+
+        string header = "setting;value";
+        var rows = new List<string>
+        {
+            header,
+            ConfigRow("participant_id", participantId),
+            ConfigRow("group", group),
+            ConfigRow("session", sessionLabel),
+            ConfigRow("recorded_at_local", DateTime.Now.ToString("O", CultureInfo.InvariantCulture)),
+            ConfigRow("unity_version", Application.unityVersion),
+            ConfigRow("platform", Application.platform.ToString()),
+            ConfigRow("pool_diameter_m", Format(config.PoolDiameter)),
+            ConfigRow("pool_radius_m", Format(config.PoolRadius)),
+            ConfigRow("room_size_m", Format(config.RoomSize)),
+            ConfigRow("platform_diameter_m", Format(config.PlatformDiameter)),
+            ConfigRow("platform_relative_x_m", Format(platformRelativePosition.x)),
+            ConfigRow("platform_relative_z_m", Format(platformRelativePosition.z)),
+            ConfigRow("pool_center_world_x_m", Format(poolCenterPosition.x)),
+            ConfigRow("pool_center_world_y_m", Format(poolCenterPosition.y)),
+            ConfigRow("pool_center_world_z_m", Format(poolCenterPosition.z)),
+            ConfigRow("exploration_trial_count", config.ExplorationTrialCount.ToString(CultureInfo.InvariantCulture)),
+            ConfigRow("hidden_trial_count", config.HiddenTrialCount.ToString(CultureInfo.InvariantCulture)),
+            ConfigRow("dual_block_trial_count", config.DualBlockTrialCount.ToString(CultureInfo.InvariantCulture)),
+            ConfigRow("visible_trial_count", config.VisibleTrialCount.ToString(CultureInfo.InvariantCulture)),
+            ConfigRow("trial_time_limit_s", Format(config.TrialTimeLimit)),
+            ConfigRow("probe_duration_s", Format(config.ProbeDuration)),
+            ConfigRow("inter_trial_interval_s", Format(config.InterTrialInterval)),
+            ConfigRow("break_duration_s", Format(config.BreakDuration)),
+            ConfigRow("guided_goal_duration_s", Format(config.GuidedGoalDuration)),
+            ConfigRow("max_forward_speed_m_s", Format(config.MaxForwardSpeed)),
+            ConfigRow("turn_speed_deg_s", Format(config.TurnSpeed)),
+            ConfigRow("acceleration_time_s", Format(config.AccelerationTime)),
+            ConfigRow("input_deadzone", Format(config.InputDeadzone)),
+            ConfigRow("heading_check_distance_m", Format(config.HeadingCheckDistance))
+        };
+
+        File.WriteAllText(
+            configFilePath,
+            string.Join(Environment.NewLine, rows) + Environment.NewLine,
+            new UTF8Encoding(true));
+
+        Debug.Log("Experiment settings saved: " + configFilePath);
     }
 
     public void LogTrial(
@@ -141,6 +202,7 @@ public sealed class DataLogger : MonoBehaviour
         int trialNumber,
         string startPosition,
         MazeQuadrant platformQuadrant,
+        Vector3 platformRelativePosition,
         float latency,
         float pathLength,
         float normalizedPathLength,
@@ -158,6 +220,8 @@ public sealed class DataLogger : MonoBehaviour
             trialNumber.ToString(CultureInfo.InvariantCulture),
             Escape(startPosition),
             platformQuadrant.ToString(),
+            Format(platformRelativePosition.x),
+            Format(platformRelativePosition.z),
             Format(latency),
             Format(pathLength),
             Format(normalizedPathLength),
@@ -175,6 +239,7 @@ public sealed class DataLogger : MonoBehaviour
     public void LogProbe(
         int trialNumber,
         MazeQuadrant platformQuadrant,
+        Vector3 platformRelativePosition,
         float duration,
         float pathLength,
         float normalizedPathLength,
@@ -193,6 +258,8 @@ public sealed class DataLogger : MonoBehaviour
             trialNumber.ToString(CultureInfo.InvariantCulture),
             "Probe-180deg",
             platformQuadrant.ToString(),
+            Format(platformRelativePosition.x),
+            Format(platformRelativePosition.z),
             Format(duration),
             Format(pathLength),
             Format(normalizedPathLength),
@@ -253,19 +320,20 @@ public sealed class DataLogger : MonoBehaviour
             builder.AppendLine(row);
         }
 
-        // Tüm rota örneklerini tek seferde yaz; her satır için ayrı disk
-        // erişimi yaparak deneme sonundaki beklemeyi uzatma.
         File.AppendAllText(
             pathPointsFilePath,
             builder.ToString(),
             new UTF8Encoding(false));
     }
 
+    private static string ConfigRow(string key, string value)
+    {
+        return Escape(key) + ";" + Escape(value);
+    }
+
     private static void Append(string targetPath, string row)
     {
-        File.AppendAllText(
-            targetPath,
-            row + Environment.NewLine);
+        File.AppendAllText(targetPath, row + Environment.NewLine);
     }
 
     private void EnsureInitialized()
@@ -281,9 +349,7 @@ public sealed class DataLogger : MonoBehaviour
         if (string.IsNullOrWhiteSpace(value))
             return fallback;
 
-        char[] invalidCharacters =
-            Path.GetInvalidFileNameChars();
-
+        char[] invalidCharacters = Path.GetInvalidFileNameChars();
         var builder = new StringBuilder();
 
         foreach (char character in value.Trim())
@@ -297,16 +363,12 @@ public sealed class DataLogger : MonoBehaviour
             builder.Append(character);
         }
 
-        return builder.Length > 0
-            ? builder.ToString()
-            : fallback;
+        return builder.Length > 0 ? builder.ToString() : fallback;
     }
 
     private static string Format(float value)
     {
-        return value.ToString(
-            "0.###",
-            CultureInfo.InvariantCulture);
+        return value.ToString("0.###", CultureInfo.InvariantCulture);
     }
 
     private static string Escape(string value)
@@ -314,8 +376,6 @@ public sealed class DataLogger : MonoBehaviour
         if (string.IsNullOrEmpty(value))
             return "";
 
-        return "\"" +
-               value.Replace("\"", "\"\"") +
-               "\"";
+        return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 }
