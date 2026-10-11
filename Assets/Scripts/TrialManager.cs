@@ -125,22 +125,34 @@ public sealed class TrialManager : MonoBehaviour
 
         Debug.Log("===== VMWT EXPERIMENT STARTED =====");
 
-        // FAZ I
+        // FAZ I - Keşif
         yield return RunPhase(
             TrialPhase.Exploration,
             config.ExplorationTrialCount);
 
-        yield return WaitITI();
+        yield return ShowPhaseTransition(
+            "Keşif",
+            "Gizli Hedef");
 
-        // FAZ II
+        // FAZ II - Gizli Hedef
         yield return RunPhase(
             TrialPhase.Hidden,
             config.HiddenTrialCount);
 
+        yield return ShowPhaseTransition(
+            "Gizli Hedef",
+            "Ara");
+
         // ARA
         yield return RunBreak();
 
-        // FAZ III
+        yield return ShowPhaseTransition(
+            "Ara",
+            "Prob Denemesi");
+
+        // FAZ III - Prob
+        yield return ShowPhaseInstruction(TrialPhase.Probe);
+
         yield return ShowTrialIntro(
             TrialPhase.Probe,
             1,
@@ -151,14 +163,18 @@ public sealed class TrialManager : MonoBehaviour
             1,
             CardinalPoint.N);
 
-        yield return WaitITI();
+        yield return ShowPhaseTransition(
+            "Prob Denemesi",
+            "Dual");
 
-        // FAZ IV - Dual Blok
+        // FAZ IV - Dual
         yield return RunPhase(
             TrialPhase.DualBlock,
             config.DualBlockTrialCount);
 
-        yield return WaitITI();
+        yield return ShowPhaseTransition(
+            "Dual",
+            "Görünür Platform");
 
         // FAZ V - Görünür Platform
         yield return RunPhase(
@@ -184,6 +200,8 @@ public sealed class TrialManager : MonoBehaviour
     {
         Debug.Log(
             $"===== {phase.ToString().ToUpper()} PHASE STARTED =====");
+
+        yield return ShowPhaseInstruction(phase);
 
         List<CardinalPoint> deck = new();
 
@@ -477,7 +495,7 @@ public sealed class TrialManager : MonoBehaviour
             yield return null;
         }
 
-        yield return WaitForAdvance();
+        yield return WaitForAdvance(showPrompt: true, isBreak: true);
         statusUI.Hide();
     }
 
@@ -505,7 +523,39 @@ public sealed class TrialManager : MonoBehaviour
         statusUI.Hide();
     }
 
-    private IEnumerator WaitForAdvance()
+    private IEnumerator ShowPhaseInstruction(TrialPhase phase)
+    {
+        bool useQuestController =
+            Application.platform == RuntimePlatform.Android;
+
+        statusUI.ShowPhaseInstruction(
+            phase,
+            useQuestController);
+
+        // Yönerge ekranda kalır; katılımcı A/Enter ile devam eder.
+        yield return WaitForAdvance(showPrompt: false);
+        statusUI.Hide();
+    }
+
+    private IEnumerator ShowPhaseTransition(
+        string completedPhase,
+        string nextPhase)
+    {
+        bool useQuestController =
+            Application.platform == RuntimePlatform.Android;
+
+        statusUI.ShowPhaseTransition(
+            completedPhase,
+            nextPhase,
+            useQuestController);
+
+        yield return WaitForAdvance(showPrompt: false);
+        statusUI.Hide();
+    }
+
+    private IEnumerator WaitForAdvance(
+        bool showPrompt = true,
+        bool isBreak = false)
     {
         bool useQuestController =
             Application.platform == RuntimePlatform.Android;
@@ -514,7 +564,13 @@ public sealed class TrialManager : MonoBehaviour
         while (IsAdvanceButtonPressed())
             yield return null;
 
-        statusUI.ShowContinuePrompt(useQuestController);
+        if (showPrompt)
+        {
+            if (isBreak)
+                statusUI.ShowBreakContinuePrompt(useQuestController);
+            else
+                statusUI.ShowContinuePrompt(useQuestController);
+        }
 
         // Enter (PC) veya sağ kontrolcü A (Quest) beklenir.
         while (!IsAdvanceButtonPressed())
