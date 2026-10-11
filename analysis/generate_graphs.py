@@ -28,7 +28,7 @@ def read_csv(path: Path) -> pd.DataFrame:
             path, sep=";", encoding="utf-8-sig",
             dtype={
                 "participant_id": "string", "group": "string",
-                "session": "string", "phase": "string",
+                "session": "string", "session_id": "string", "phase": "string",
                 "start_position": "string", "platform_quadrant": "string",
             },
         )
@@ -110,9 +110,12 @@ def safe_name(value: object) -> str:
 
 
 def add_session(data: pd.DataFrame) -> pd.DataFrame:
-    if "session" not in data.columns:
+    if "session" not in data.columns or "session_id" not in data.columns:
         data = data.copy()
-        data["session"] = "UnknownSession"
+        if "session" not in data.columns:
+            data["session"] = "UnknownSession"
+        if "session_id" not in data.columns:
+            data["session_id"] = "LegacySession"
     return data
 
 
@@ -136,14 +139,14 @@ def plot_trajectories(
     pool_diameter: float | None,
 ) -> int:
     paths, trials = add_session(paths), add_session(trials)
-    keys = ["participant_id", "session", "phase", "trial_no"]
+    keys = ["participant_id", "session_id", "session", "phase", "trial_no"]
     trial_lookup = {}
     for key, rows in trials.groupby(keys, dropna=False, sort=False):
         trial_lookup[key] = rows.iloc[0]
 
     created = 0
     for key, route in paths.groupby(keys, dropna=False, sort=False):
-        participant, session, phase, trial_no = key
+        participant, session_id, session, phase, trial_no = key
         route = route.sort_values("sample_no")
         x = pd.to_numeric(route["pool_relative_x_m"], errors="coerce").to_numpy()
         z = pd.to_numeric(route["pool_relative_z_m"], errors="coerce").to_numpy()
@@ -194,7 +197,7 @@ def plot_trajectories(
         ax.set_ylabel("Havuz merkezine gore Z (m)")
         ax.set_title(
             f"Rota | Katilimci {participant} | {phase} - Deneme {trial_no}\n"
-            f"Oturum: {session}"
+            f"Oturum: {session} ({session_id})"
         )
         ax.grid(True, alpha=0.3)
         ax.legend(loc="best", fontsize=8)
@@ -286,7 +289,7 @@ def validate_paths(
     trials: pd.DataFrame, paths: pd.DataFrame, output_dir: Path
 ) -> pd.DataFrame:
     trials, paths = add_session(trials.copy()), add_session(paths.copy())
-    keys = ["participant_id", "session", "phase", "trial_no"]
+    keys = ["participant_id", "session_id", "session", "phase", "trial_no"]
     summaries = []
     for key, route in paths.groupby(keys, dropna=False, sort=False):
         route = route.sort_values("sample_no")
