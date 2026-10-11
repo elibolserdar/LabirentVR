@@ -27,6 +27,58 @@ public sealed class ExperimentStatusUI : MonoBehaviour
                 : $"Deneme {trialNumber} / {totalTrials}\nHazır olun...";
     }
 
+    public void ShowPhaseInstruction(
+        TrialPhase phase,
+        bool useQuestController)
+    {
+        statusPanel.SetActive(true);
+        statusTitle.text = GetPhaseTitle(phase);
+
+        string instruction = phase switch
+        {
+            TrialPhase.Exploration =>
+                "Platform içindeki hedefi görmektesiniz. Hareket kontrollerini kullanarak hedefe ulaşmaya çalışın. Bu aşamada ortamı keşfedin ve hareket kontrollerini öğrenin.",
+
+            TrialPhase.Hidden =>
+                "Hedef, ortamda sabit bir konumda bulunacak ancak görünmeyecektir. Her denemede farklı bir başlangıç konumundan başlayarak çevresel ipuçlarından yararlanın ve gizli hedefi bulmaya çalışın.",
+
+            TrialPhase.Probe =>
+                "Gizli hedefi bulmaya çalışmaya devam edin.",
+
+            TrialPhase.DualBlock =>
+                "Şimdi yine hedefi bulmaya çalışın. Hedefi bulduğunuzda geçen süre kadar A tuşuna basın. Tuşa basarken -bababa şeklinde içinizden söyleyin. Test süresince sürenin ne kadar geçtiğini içinizden saymaya çalışmayın, yalnızca mevcut görevinize odaklanın.",
+
+            TrialPhase.Visible =>
+                "Son bölümdesiniz. Şimdi havuzda görünen bir hedef göreceksiniz. Her denemede mümkün olan en hızlı ve en kısa yoldan platforma ulaşmaya çalışın.",
+
+            _ => string.Empty
+        };
+
+        string advanceInstruction = useQuestController
+            ? "Yönergeyi okuduktan sonra devam etmek için A butonuna basın."
+            : "Yönergeyi okuduktan sonra devam etmek için Enter tuşuna basın.";
+
+        statusDetail.text = instruction + "\n\n" + advanceInstruction;
+    }
+
+    public void ShowPhaseTransition(
+        string completedPhase,
+        string nextPhase,
+        bool useQuestController)
+    {
+        statusPanel.SetActive(true);
+        statusTitle.text = "Bölüm Geçişi";
+
+        string advanceInstruction = useQuestController
+            ? "Devam etmek için A butonuna basın."
+            : "Devam etmek için Enter tuşuna basın.";
+
+        statusDetail.text =
+            $"{completedPhase} bölümü tamamlandı.\n" +
+            $"Sıradaki bölüm: {nextPhase}.\n" +
+            advanceInstruction;
+    }
+
     public void ShowDualBlockReproductionPrompt(bool useQuestController)
     {
         statusPanel.SetActive(true);
@@ -78,8 +130,18 @@ public sealed class ExperimentStatusUI : MonoBehaviour
         statusTitle.text = "Devam Etmeye Hazır";
 
         statusDetail.text = useQuestController
-            ? "Sonraki denemeye / adıma geçmek için\nA butonuna basın."
-            : "Sonraki denemeye / adıma geçmek için\nEnter tuşuna basın.";
+            ? "Geri sayım tamamlandı.\nSonraki denemeye geçmek için A butonuna basın."
+            : "Geri sayım tamamlandı.\nSonraki denemeye geçmek için Enter tuşuna basın.";
+    }
+
+    public void ShowBreakContinuePrompt(bool useQuestController)
+    {
+        statusPanel.SetActive(true);
+        statusTitle.text = "Ara Tamamlandı";
+
+        statusDetail.text = useQuestController
+            ? "Hazır olduğunuzda devam etmek için A butonuna basın."
+            : "Hazır olduğunuzda devam etmek için Enter tuşuna basın.";
     }
 
     public void ShowBreak(float remainingSeconds)
@@ -95,7 +157,8 @@ public sealed class ExperimentStatusUI : MonoBehaviour
         statusTitle.text = "Ara";
 
         statusDetail.text =
-            $"Lütfen dinlenin\n" +
+            $"Lütfen dinlenin.\n" +
+            $"Bir sonraki bölüm başlamadan önce hazır olduğunuzdan emin olun.\n" +
             $"{minutes:00}:{seconds:00}";
     }
 
@@ -107,7 +170,8 @@ public sealed class ExperimentStatusUI : MonoBehaviour
             "Deney Tamamlandı";
 
         statusDetail.text =
-            "Teşekkür ederiz.";
+            "Deney tamamlandı. Katılımınız için teşekkür ederiz. " +
+            "Lütfen araştırmacının yönlendirmesini bekleyin.";
     }
 
     public void Hide()
@@ -124,13 +188,13 @@ public sealed class ExperimentStatusUI : MonoBehaviour
                 "Keşif",
 
             TrialPhase.Hidden =>
-                "Gizli Platform",
+                "Gizli Hedef",
 
             TrialPhase.Probe =>
                 "Prob Denemesi",
 
             TrialPhase.DualBlock =>
-                "Dual Blok",
+                "Dual",
 
             TrialPhase.Visible =>
                 "Görünür Platform",
