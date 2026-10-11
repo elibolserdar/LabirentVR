@@ -10,6 +10,10 @@ public sealed class ExperimentSetupUI : MonoBehaviour
     [SerializeField] private TMP_Dropdown groupDropdown;
     [SerializeField] private Button startButton;
 
+    [Header("Data Collection")]
+    [Tooltip("Set to Baseline or Follow-up in the Inspector before each session.")]
+    [SerializeField] private string sessionLabel = "Baseline";
+
     [Header("Experiment")]
     [SerializeField] private DataLogger dataLogger;
     [SerializeField] private TrialManager trialManager;
@@ -49,7 +53,8 @@ public sealed class ExperimentSetupUI : MonoBehaviour
 
         dataLogger.StartSession(
             participantId,
-            group);
+            group,
+            sessionLabel);
 
         setupPanel.SetActive(false);
 
