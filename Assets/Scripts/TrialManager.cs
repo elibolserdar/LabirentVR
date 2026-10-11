@@ -37,6 +37,7 @@ public sealed class TrialManager : MonoBehaviour
     private float headingError = -1f;
 
     private XRInputDevice rightController;
+    private GameObject cuesRoot;
     private float lastReproducedTime = -1f;
 
     private Vector3 trialStartPosition;
@@ -50,6 +51,13 @@ public sealed class TrialManager : MonoBehaviour
     {
         if (player != null)
             player.enabled = false;
+
+        // Köşe ipuçlarını fazlara göre açıp kapatabilmek için kök nesneyi bul.
+        cuesRoot = GameObject.Find("Cues");
+        if (cuesRoot != null)
+            cuesRoot.SetActive(false);
+        else
+            Debug.LogWarning("Cues root was not found in the scene.");
 
         if (platformTrigger != null)
         {
@@ -536,6 +544,11 @@ public sealed class TrialManager : MonoBehaviour
     private void ConfigurePlatform(
         TrialPhase phase)
     {
+        // Explore yalnızca kontrol öğrenme fazı: köşe ipuçları kapalı.
+        // Diğer fazlarda mevcut ipucu davranışı korunur.
+        if (cuesRoot != null)
+            cuesRoot.SetActive(phase != TrialPhase.Exploration);
+
         switch (phase)
         {
             case TrialPhase.Exploration:
