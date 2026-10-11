@@ -21,6 +21,7 @@ public class PlayerMovement : MonoBehaviour
     private float pathSampleDistance = 0.02f;
 
     private readonly List<Vector3> pathHistory = new();
+    private readonly List<float> pathHistoryTimes = new();
 
     private CharacterController controller;
 
@@ -30,6 +31,7 @@ public class PlayerMovement : MonoBehaviour
     private float currentForwardSpeed;
     private float verticalVelocity;
     private float pathLength;
+    private float pathRecordingStartTime;
 
     private Vector3 previousFramePosition;
     private Vector3 lastSampledPosition;
@@ -41,6 +43,9 @@ public class PlayerMovement : MonoBehaviour
 
     public IReadOnlyList<Vector3> PathHistory =>
         pathHistory;
+
+    public IReadOnlyList<float> PathHistoryTimes =>
+        pathHistoryTimes;
 
     private void Awake()
     {
@@ -299,27 +304,43 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        pathHistory.Add(
-            currentPosition);
+        pathHistory.Add(currentPosition);
+        pathHistoryTimes.Add(
+            Mathf.Max(0f, Time.time - pathRecordingStartTime));
 
-        lastSampledPosition =
-            currentPosition;
+        lastSampledPosition = currentPosition;
     }
 
     public void ResetPath()
     {
         pathLength = 0f;
+        pathRecordingStartTime = Time.time;
 
         pathHistory.Clear();
+        pathHistoryTimes.Clear();
 
-        previousFramePosition =
-            transform.position;
+        previousFramePosition = transform.position;
+        lastSampledPosition = transform.position;
 
-        lastSampledPosition =
-            transform.position;
+        pathHistory.Add(transform.position);
+        pathHistoryTimes.Add(0f);
+    }
 
-        pathHistory.Add(
-            transform.position);
+    public void RecordFinalPathSample()
+    {
+        Vector3 currentPosition = transform.position;
+        Vector3 horizontalDelta = currentPosition - lastSampledPosition;
+        horizontalDelta.y = 0f;
+
+        // Deneme sonundaki son birkaç santimetreyi de kaydet.
+        if (horizontalDelta.sqrMagnitude <= 0.000001f)
+            return;
+
+        pathHistory.Add(currentPosition);
+        pathHistoryTimes.Add(
+            Mathf.Max(0f, Time.time - pathRecordingStartTime));
+
+        lastSampledPosition = currentPosition;
     }
 
     public float GetPathLength()
