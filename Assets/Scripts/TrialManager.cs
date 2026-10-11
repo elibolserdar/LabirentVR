@@ -124,6 +124,11 @@ public sealed class TrialManager : MonoBehaviour
 
         SyncPlatformPositionWithConfig();
 
+        dataLogger.LogExperimentConfig(
+            config,
+            poolCenter.position,
+            platformRoot.position - poolCenter.position);
+
         StartCoroutine(RunExperiment());
     }
 
@@ -788,6 +793,7 @@ public sealed class TrialManager : MonoBehaviour
             trialNumber,
             startPoint.ToString(),
             platformQuadrant,
+            platformRoot.position - poolCenter.position,
             latency,
             pathLength,
             normalizedPathLength,
@@ -841,6 +847,7 @@ public sealed class TrialManager : MonoBehaviour
         dataLogger.LogProbe(
             trialNumber,
             platformQuadrant,
+            platformRoot.position - poolCenter.position,
             duration,
             pathLength,
             normalizedPathLength,
